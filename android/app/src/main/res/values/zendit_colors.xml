@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="zendit_background">#1B1938</color>
+
+    <!-- Native player (PlayerActivity) -->
+    <color name="zp_brand">#FF5B3D</color>
+    <color name="zp_epg_accent">#FFB39E</color>
+    <color name="zp_epg_secondary">#E6FFFFFF</color>
+    <color name="zp_muted">#B7B4D6</color>
+    <color name="zp_panel">#EB201D3F</color>
+    <color name="zp_side">#F71B1938</color>
+    <color name="zp_text">#F5F5FA</color>
+    <color name="zp_track">#40FFFFFF</color>
 </resources>

@@ -1,219 +1,446 @@
 package com.zendit.play;
 
+import android.app.UiModeManager;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Outline;
 import android.graphics.Rect;
 import android.net.Uri;
+import android.os.Build;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
 import android.webkit.WebView;
 import androidx.activity.result.ActivityResult;
-import androidx.annotation.OptIn;
 import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
-import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.ui.PlayerView;
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import java.io.File;
+import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.List;
+import org.json.JSONException;
+import org.json.JSONObject;
 
-/**
- * Native playback for the web app (src/lib/nativePlayer.ts): the fullscreen player (PlayerActivity),
- * external player apps, and the Live TV preview - an ExoPlayer view laid over the WebView.
- */
-@OptIn(markerClass = UnstableApi.class)
 @CapacitorPlugin(name = "NativePlayer")
+/* loaded from: classes7.dex */
 public class NativePlayerPlugin extends Plugin {
-
-    private PlayerView previewView;
+    private final Player.Listener previewListener = new AnonymousClass1();
     private ExoPlayer previewPlayer;
+    private PlayerView previewView;
 
-    private final Player.Listener previewListener = new Player.Listener() {
-        @Override
+    /* renamed from: $r8$lambda$7oQP1N_Bh8rRTKGjMMkf-o68zzM, reason: not valid java name */
+    public static /* synthetic */ void m428$r8$lambda$7oQP1N_Bh8rRTKGjMMkfo68zzM(NativePlayerPlugin nativePlayerPlugin, PluginCall pluginCall) {
+        nativePlayerPlugin.lambda$stopPreview$3(pluginCall);
+    }
+
+    public static /* synthetic */ void $r8$lambda$I6sGKQUUXLoLMWeUOBOepH21QOI(NativePlayerPlugin nativePlayerPlugin, String str, Rect rect, PluginCall pluginCall) {
+        nativePlayerPlugin.lambda$startPreview$1(str, rect, pluginCall);
+    }
+
+    public static /* synthetic */ void $r8$lambda$XqJtxEzlr1h1cMQF69r9wHFY4y0(NativePlayerPlugin nativePlayerPlugin) {
+        nativePlayerPlugin.releasePreview();
+    }
+
+    /* renamed from: $r8$lambda$r2KDVwV_7dwgJ-bQjI1MnCDUx-M, reason: not valid java name */
+    public static /* synthetic */ void m429$r8$lambda$r2KDVwV_7dwgJbQjI1MnCDUxM(NativePlayerPlugin nativePlayerPlugin, PluginCall pluginCall) {
+        nativePlayerPlugin.lambda$clearCache$0(pluginCall);
+    }
+
+    public static /* synthetic */ void $r8$lambda$yReILc8nJANgzOOXCCjsiP3iBIM(NativePlayerPlugin nativePlayerPlugin, Rect rect, PluginCall pluginCall) {
+        nativePlayerPlugin.lambda$updatePreview$2(rect, pluginCall);
+    }
+
+    /* renamed from: -$$Nest$mreleasePreview, reason: not valid java name */
+    static /* bridge */ /* synthetic */ void m430$$Nest$mreleasePreview(NativePlayerPlugin nativePlayerPlugin) {
+        nativePlayerPlugin.releasePreview();
+    }
+
+    static /* synthetic */ void access$000(NativePlayerPlugin x0, String x1, JSObject x2) {
+        x0.notifyListeners(x1, x2);
+    }
+
+    static /* synthetic */ void access$100(NativePlayerPlugin x0, String x1, JSObject x2) {
+        x0.notifyListeners(x1, x2);
+    }
+
+    /* renamed from: com.zendit.play.NativePlayerPlugin$1, reason: invalid class name */
+    class AnonymousClass1 implements Player.Listener {
+        public static /* synthetic */ void $r8$lambda$PMvXu3aYyNTf7LsWzareO5HBbMo(AnonymousClass1 anonymousClass1) {
+            anonymousClass1.lambda$onPlayerError$0();
+        }
+
+        AnonymousClass1() {
+        }
+
+        @Override // androidx.media3.common.Player.Listener
         public void onPlaybackStateChanged(int playbackState) {
-            if (playbackState == Player.STATE_READY) {
-                notifyListeners("previewPlaying", new JSObject());
+            if (playbackState == 3) {
+                NativePlayerPlugin.access$000(NativePlayerPlugin.this, "previewPlaying", new JSObject());
             }
         }
 
-        @Override
+        @Override // androidx.media3.common.Player.Listener
         public void onPlayerError(PlaybackException error) {
             JSObject data = new JSObject();
             data.put("message", error.getErrorCodeName());
-            notifyListeners("previewError", data);
-            // Remove the native view so the web page can show its error message inside the box.
-            getBridge().executeOnMainThread(() -> releasePreview());
+            NativePlayerPlugin.access$100(NativePlayerPlugin.this, "previewError", data);
+            NativePlayerPlugin.this.getBridge().executeOnMainThread(new Runnable() { // from class: com.zendit.play.NativePlayerPlugin$1$$ExternalSyntheticLambda0
+                @Override // java.lang.Runnable
+                public final void run() {
+                    NativePlayerPlugin.AnonymousClass1.$r8$lambda$PMvXu3aYyNTf7LsWzareO5HBbMo(AnonymousClass1.this);
+                }
+            });
         }
-    };
+
+        private /* synthetic */ void lambda$onPlayerError$0() {
+            NativePlayerPlugin.m430$$Nest$mreleasePreview(NativePlayerPlugin.this);
+        }
+    }
 
     @PluginMethod
     public void play(PluginCall call) {
+        int i;
+        List<PlayerItem> items = new ArrayList<>();
+        JSArray rawItems = call.getArray("items", new JSArray());
+        for (int i2 = 0; i2 < rawItems.length(); i2++) {
+            JSONObject o = rawItems.optJSONObject(i2);
+            if (o != null && !o.optString("url", "").isEmpty()) {
+                items.add(PlayerItem.fromJson(o));
+            }
+        }
         String url = call.getString("url");
-        if (url == null || url.isEmpty()) {
+        if (!items.isEmpty() || url == null || url.isEmpty()) {
+            i = 0;
+        } else {
+            boolean live = Boolean.TRUE.equals(call.getBoolean("live", false));
+            i = 0;
+            items.add(new PlayerItem(url, url, call.getString("title", ""), "", live ? "live" : "movie", 0, "", "", 0L));
+        }
+        if (items.isEmpty()) {
             call.reject("Yayın adresi yok");
             return;
         }
-        // Most IPTV accounts allow a single stream at a time: free the preview first.
-        getBridge().executeOnMainThread(this::releasePreview);
-        Intent intent = new Intent(getContext(), PlayerActivity.class);
-        intent.putExtra(PlayerActivity.EXTRA_URL, url);
-        intent.putExtra(PlayerActivity.EXTRA_TITLE, call.getString("title", ""));
-        intent.putExtra(PlayerActivity.EXTRA_LIVE, Boolean.TRUE.equals(call.getBoolean("live", false)));
+        PlayerSession.set(items, call.getData().optInt("index", i), PlayerConfig.fromJson(call.getObject("config", new JSObject())));
+        getBridge().executeOnMainThread(new Runnable() { // from class: com.zendit.play.NativePlayerPlugin$$ExternalSyntheticLambda2
+            @Override // java.lang.Runnable
+            public final void run() {
+                NativePlayerPlugin.$r8$lambda$XqJtxEzlr1h1cMQF69r9wHFY4y0(NativePlayerPlugin.this);
+            }
+        });
+        Intent intent = new Intent(getContext(), (Class<?>) PlayerActivity.class);
         startActivityForResult(call, intent, "playerClosed");
     }
 
     @ActivityCallback
     private void playerClosed(PluginCall call, ActivityResult result) {
-        if (call != null) {
-            call.resolve();
+        if (call == null) {
+            return;
         }
+        JSObject data = new JSObject();
+        Intent intent = result.getData();
+        String json = intent != null ? intent.getStringExtra("result") : null;
+        if (json != null) {
+            try {
+                data = new JSObject(json);
+            } catch (JSONException e) {
+            }
+        }
+        call.resolve(data);
     }
 
     @PluginMethod
     public void openExternal(PluginCall call) {
+        String[] packages;
         String url = call.getString("url");
         if (url == null || url.isEmpty()) {
             call.reject("Yayın adresi yok");
             return;
         }
-        Intent intent = new Intent(Intent.ACTION_VIEW);
+        String title = call.getString("title", "");
+        String player = call.getString("player", "system");
+        Intent intent = new Intent("android.intent.action.VIEW");
         intent.setDataAndType(Uri.parse(url), "video/*");
-        // VLC and MX Player show this as the video title.
-        intent.putExtra("title", call.getString("title", ""));
+        intent.putExtra("title", title);
+        if ("vlc".equals(player)) {
+            packages = new String[]{"org.videolan.vlc"};
+        } else {
+            packages = "mx".equals(player) ? new String[]{"com.mxtech.videoplayer.pro", "com.mxtech.videoplayer.ad"} : new String[0];
+        }
+        PackageManager pm = getContext().getPackageManager();
+        for (String pkg : packages) {
+            if (isInstalled(pm, pkg)) {
+                intent.setPackage(pkg);
+                try {
+                    getActivity().startActivity(intent);
+                    call.resolve();
+                    return;
+                } catch (ActivityNotFoundException e) {
+                    call.reject("Oynatıcı açılamadı");
+                    return;
+                }
+            }
+        }
+        if (packages.length > 0) {
+            call.reject(("vlc".equals(player) ? "VLC" : "MX Player") + " cihazda yüklü değil");
+            return;
+        }
         try {
-            getActivity().startActivity(intent);
+            getActivity().startActivity(Intent.createChooser(intent, "Oynatıcı seçin"));
             call.resolve();
-        } catch (ActivityNotFoundException e) {
+        } catch (ActivityNotFoundException e2) {
             call.reject("Cihazda video oynatıcı uygulaması bulunamadı");
         }
     }
 
     @PluginMethod
-    public void startPreview(PluginCall call) {
-        String url = call.getString("url");
-        if (url == null || url.isEmpty()) {
-            call.reject("Yayın adresi yok");
+    public void openTrailer(PluginCall call) {
+        String youtubeId = call.getString("youtubeId", "");
+        String url = call.getString("url", "");
+        if (youtubeId != null && !youtubeId.isEmpty()) {
+            try {
+                getActivity().startActivity(new Intent("android.intent.action.VIEW", Uri.parse("vnd.youtube:" + youtubeId)));
+                call.resolve();
+                return;
+            } catch (ActivityNotFoundException e) {
+                url = "https://www.youtube.com/watch?v=" + youtubeId;
+            }
+        }
+        if (url != null && !url.isEmpty()) {
+            try {
+                getActivity().startActivity(new Intent("android.intent.action.VIEW", Uri.parse(url)));
+                call.resolve();
+                return;
+            } catch (ActivityNotFoundException e2) {
+                call.reject("Fragmanı açacak uygulama bulunamadı (YouTube veya tarayıcı)");
+                return;
+            }
+        }
+        call.reject("Fragman adresi yok");
+    }
+
+    @PluginMethod
+    public void players(PluginCall call) {
+        PackageManager pm = getContext().getPackageManager();
+        JSObject result = new JSObject();
+        result.put("vlc", isInstalled(pm, "org.videolan.vlc"));
+        result.put("mx", isInstalled(pm, "com.mxtech.videoplayer.pro") || isInstalled(pm, "com.mxtech.videoplayer.ad"));
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void deviceInfo(PluginCall call) {
+        JSObject result = new JSObject();
+        result.put("manufacturer", Build.MANUFACTURER);
+        result.put("model", Build.MODEL);
+        result.put("androidVersion", Build.VERSION.RELEASE);
+        result.put("sdk", Build.VERSION.SDK_INT);
+        UiModeManager uiMode = (UiModeManager) getContext().getSystemService("uimode");
+        result.put("isTv", uiMode != null && uiMode.getCurrentModeType() == 4);
+        try {
+            PackageInfo info = getContext().getPackageManager().getPackageInfo(getContext().getPackageName(), 0);
+            result.put("appVersion", info.versionName);
+        } catch (PackageManager.NameNotFoundException e) {
+            result.put("appVersion", "");
+        }
+        result.put("webCacheBytes", folderSize(getContext().getCacheDir()));
+        call.resolve(result);
+    }
+
+    @PluginMethod
+    public void clearCache(final PluginCall call) {
+        getBridge().executeOnMainThread(new Runnable() { // from class: com.zendit.play.NativePlayerPlugin$$ExternalSyntheticLambda1
+            @Override // java.lang.Runnable
+            public final void run() {
+                NativePlayerPlugin.m429$r8$lambda$r2KDVwV_7dwgJbQjI1MnCDUxM(NativePlayerPlugin.this, call);
+            }
+        });
+    }
+
+    private /* synthetic */ void lambda$clearCache$0(PluginCall call) {
+        getBridge().getWebView().clearCache(true);
+        deleteChildren(getContext().getCacheDir());
+        call.resolve();
+    }
+
+    private static boolean isInstalled(PackageManager pm, String pkg) {
+        try {
+            pm.getPackageInfo(pkg, 0);
+            return true;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
+    }
+
+    private static long folderSize(File dir) {
+        File[] files = dir == null ? null : dir.listFiles();
+        if (files == null) {
+            return 0L;
+        }
+        long total = 0;
+        for (File f : files) {
+            total += f.isDirectory() ? folderSize(f) : f.length();
+        }
+        return total;
+    }
+
+    private static void deleteChildren(File dir) {
+        File[] files = dir == null ? null : dir.listFiles();
+        if (files == null) {
             return;
         }
-        Rect rect = readRect(call);
-        getBridge().executeOnMainThread(() -> {
-            showPreview(url, rect);
-            call.resolve();
-        });
-    }
-
-    @PluginMethod
-    public void updatePreview(PluginCall call) {
-        Rect rect = readRect(call);
-        getBridge().executeOnMainThread(() -> {
-            if (previewView != null) {
-                placePreview(rect);
+        for (File f : files) {
+            if (f.isDirectory()) {
+                deleteChildren(f);
             }
-            call.resolve();
-        });
+            f.delete();
+        }
     }
 
     @PluginMethod
-    public void stopPreview(PluginCall call) {
-        getBridge().executeOnMainThread(() -> {
-            releasePreview();
-            call.resolve();
+    public void startPreview(final PluginCall call) {
+        final String url = call.getString("url");
+        if (url == null || url.isEmpty()) {
+            call.reject("Yayın adresi yok");
+        } else {
+            final Rect rect = readRect(call);
+            getBridge().executeOnMainThread(new Runnable() { // from class: com.zendit.play.NativePlayerPlugin$$ExternalSyntheticLambda3
+                @Override // java.lang.Runnable
+                public final void run() {
+                    NativePlayerPlugin.$r8$lambda$I6sGKQUUXLoLMWeUOBOepH21QOI(NativePlayerPlugin.this, url, rect, call);
+                }
+            });
+        }
+    }
+
+    private /* synthetic */ void lambda$startPreview$1(String url, Rect rect, PluginCall call) {
+        showPreview(url, rect);
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void updatePreview(final PluginCall call) {
+        final Rect rect = readRect(call);
+        getBridge().executeOnMainThread(new Runnable() { // from class: com.zendit.play.NativePlayerPlugin$$ExternalSyntheticLambda0
+            @Override // java.lang.Runnable
+            public final void run() {
+                NativePlayerPlugin.$r8$lambda$yReILc8nJANgzOOXCCjsiP3iBIM(NativePlayerPlugin.this, rect, call);
+            }
         });
     }
 
-    @Override
+    private /* synthetic */ void lambda$updatePreview$2(Rect rect, PluginCall call) {
+        if (this.previewView != null) {
+            placePreview(rect);
+        }
+        call.resolve();
+    }
+
+    @PluginMethod
+    public void stopPreview(final PluginCall call) {
+        getBridge().executeOnMainThread(new Runnable() { // from class: com.zendit.play.NativePlayerPlugin$$ExternalSyntheticLambda4
+            @Override // java.lang.Runnable
+            public final void run() {
+                NativePlayerPlugin.m428$r8$lambda$7oQP1N_Bh8rRTKGjMMkfo68zzM(NativePlayerPlugin.this, call);
+            }
+        });
+    }
+
+    private /* synthetic */ void lambda$stopPreview$3(PluginCall call) {
+        releasePreview();
+        call.resolve();
+    }
+
+    @Override // com.getcapacitor.Plugin
     protected void handleOnPause() {
         super.handleOnPause();
-        // App sent to the background: close the stream connection but remember the channel.
-        if (previewPlayer != null) {
-            previewPlayer.stop();
+        if (this.previewPlayer != null) {
+            this.previewPlayer.stop();
         }
     }
 
-    @Override
+    @Override // com.getcapacitor.Plugin
     protected void handleOnResume() {
         super.handleOnResume();
-        // The media item and playWhenReady survive stop(), so prepare() resumes the same channel.
-        if (previewPlayer != null) {
-            previewPlayer.prepare();
+        if (this.previewPlayer != null) {
+            this.previewPlayer.prepare();
         }
     }
 
-    @Override
+    @Override // com.getcapacitor.Plugin
     protected void handleOnDestroy() {
         super.handleOnDestroy();
         releasePreview();
     }
 
-    /** The web page sends the preview box in device pixels, relative to the WebView. */
     private Rect readRect(PluginCall call) {
-        int x = call.getInt("x", 0);
-        int y = call.getInt("y", 0);
-        int width = Math.max(0, call.getInt("width", 0));
-        int height = Math.max(0, call.getInt("height", 0));
+        int x = call.getInt("x", 0).intValue();
+        int y = call.getInt("y", 0).intValue();
+        int width = Math.max(0, call.getInt("width", 0).intValue());
+        int height = Math.max(0, call.getInt("height", 0).intValue());
         return new Rect(x, y, x + width, y + height);
     }
 
     private void showPreview(String url, Rect rect) {
-        if (previewView == null) {
+        if (this.previewView == null) {
             ViewGroup parent = (ViewGroup) getBridge().getWebView().getParent();
-            previewView = (PlayerView) LayoutInflater.from(getContext()).inflate(R.layout.zendit_preview_player, parent, false);
-            previewView.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
-            float radius = 12 * getContext().getResources().getDisplayMetrics().density;
-            previewView.setOutlineProvider(
-                new ViewOutlineProvider() {
-                    @Override
-                    public void getOutline(View view, Outline outline) {
-                        outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
-                    }
+            this.previewView = (PlayerView) LayoutInflater.from(getContext()).inflate(R.layout.zendit_preview_player, parent, false);
+            this.previewView.setDescendantFocusability(393216);
+            final float radius = getContext().getResources().getDisplayMetrics().density * 12.0f;
+            this.previewView.setOutlineProvider(new ViewOutlineProvider() { // from class: com.zendit.play.NativePlayerPlugin.2
+                @Override // android.view.ViewOutlineProvider
+                public void getOutline(View view, Outline outline) {
+                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), radius);
                 }
-            );
-            previewView.setClipToOutline(true);
-            // Added after the WebView, so it is drawn on top of it. It is neither focusable nor
-            // clickable: the TV remote and touches keep working in the web page.
-            parent.addView(previewView);
+            });
+            this.previewView.setClipToOutline(true);
+            parent.addView(this.previewView);
         }
         placePreview(rect);
-        if (previewPlayer == null) {
-            previewPlayer = StreamPlayers.create(getContext());
-            previewPlayer.addListener(previewListener);
-            previewView.setPlayer(previewPlayer);
+        if (this.previewPlayer == null) {
+            this.previewPlayer = StreamPlayers.create(getContext());
+            this.previewPlayer.addListener(this.previewListener);
+            this.previewView.setPlayer(this.previewPlayer);
         }
-        previewPlayer.setMediaItem(StreamPlayers.mediaItem(url));
-        previewPlayer.setPlayWhenReady(true);
-        previewPlayer.prepare();
+        this.previewPlayer.setMediaItem(StreamPlayers.mediaItem(url));
+        this.previewPlayer.setPlayWhenReady(true);
+        this.previewPlayer.prepare();
     }
 
     private void placePreview(Rect rect) {
         WebView webView = getBridge().getWebView();
-        ViewGroup.LayoutParams params = previewView.getLayoutParams();
+        ViewGroup.LayoutParams params = this.previewView.getLayoutParams();
         params.width = rect.width();
         params.height = rect.height();
-        previewView.setLayoutParams(params);
-        previewView.setX(webView.getX() + rect.left);
-        previewView.setY(webView.getY() + rect.top);
+        this.previewView.setLayoutParams(params);
+        this.previewView.setX(webView.getX() + rect.left);
+        this.previewView.setY(webView.getY() + rect.top);
     }
 
     private void releasePreview() {
-        if (previewPlayer != null) {
-            previewPlayer.removeListener(previewListener);
-            previewPlayer.release();
-            previewPlayer = null;
+        if (this.previewPlayer != null) {
+            this.previewPlayer.removeListener(this.previewListener);
+            this.previewPlayer.release();
+            this.previewPlayer = null;
         }
-        if (previewView != null) {
-            previewView.setPlayer(null);
-            ViewGroup parent = (ViewGroup) previewView.getParent();
+        if (this.previewView != null) {
+            this.previewView.setPlayer(null);
+            ViewGroup parent = (ViewGroup) this.previewView.getParent();
             if (parent != null) {
-                parent.removeView(previewView);
+                parent.removeView(this.previewView);
             }
-            previewView = null;
+            this.previewView = null;
         }
     }
 }

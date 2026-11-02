@@ -4,8 +4,20 @@
     <!-- Android TV: the app runs without a touchscreen and is offered on TV devices (leanback). -->
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.screen.landscape" android:required="false" />
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- External player setting: VLC / MX Player and any app that plays video. -->
+    <queries>
+        <package android:name="org.videolan.vlc" />
+        <package android:name="com.mxtech.videoplayer.ad" />
+        <package android:name="com.mxtech.videoplayer.pro" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="video/*" />
+        </intent>
+    </queries>
 
     <application
         android:allowBackup="true"
@@ -23,6 +35,7 @@
             android:label="@string/title_activity_main"
             android:theme="@style/AppTheme.NoActionBarLaunch"
             android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
             android:exported="true">
 
             <!-- Phones / tablets -->
@@ -44,6 +57,8 @@
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:screenOrientation="sensorLandscape"
             android:theme="@style/AppTheme.Player"
+            android:resizeableActivity="true"
+            android:supportsPictureInPicture="true"
             android:exported="false" />
 
         <provider
