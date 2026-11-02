@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -sSfL -o /home/user/tools/jadx.zip https://github.com/skylot/jadx/releases/download/v1.5.3/jadx-1.5.3.zip)",
+      "Bash(unzip -oq /home/user/tools/jadx.zip -d /home/user/tools/jadx)",
+      "Bash(/home/user/tools/jadx/bin/jadx:*)"
+    ]
+  }
+}
