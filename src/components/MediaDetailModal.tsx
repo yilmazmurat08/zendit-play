@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Movie, Series, Episode } from '../types';
-import { Play, Heart, Star, Clock, CalendarDays, History, X, Loader2 } from 'lucide-react';
+import { Play, Heart, Star, Clock, CalendarDays, History, X, Loader2, Clapperboard } from 'lucide-react';
+import { trailerInfo } from '../lib/trailer';
+import { useParental } from '../lib/parental';
 import { PosterImage } from './TvUi';
 
 interface MediaDetailModalProps {
@@ -8,9 +10,14 @@ interface MediaDetailModalProps {
   isDetailLoading?: boolean;
   related?: (Movie | Series)[];
   onClose: () => void;
-  onPlay: (media: Movie | Series, episode?: Episode, seasonNum?: number) => void;
+  /** fromStart: ignore the saved position ("Hemen İzle" next to "İzlemeye Devam Et"). */
+  onPlay: (media: Movie | Series, episode?: Episode, seasonNum?: number, fromStart?: boolean) => void;
+  /** Shown when the provider sent a trailer (YouTube id or video URL). */
+  onPlayTrailer?: (media: Movie | Series) => void;
   onToggleFavorite: (id: string, type: 'movie' | 'series') => void;
   onSelectMedia?: (item: Movie | Series) => void;
+  /** Short landscape stage: a smaller poster so it fits the panel height. */
+  compact?: boolean;
 }
 
 function InfoRow({ label, value, tall = false }: { label: string; value: string; tall?: boolean }) {
@@ -28,9 +35,13 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
   related = [],
   onClose,
   onPlay,
+  onPlayTrailer,
   onToggleFavorite,
   onSelectMedia,
+  compact = false,
 }) => {
+  const parental = useParental();
+  const kind = media && 'seasons' in media ? 'series' : 'movie';
   const [selectedSeason, setSelectedSeason] = useState<number | null>(null);
   const playButtonRef = useRef<HTMLButtonElement | null>(null);
 
@@ -52,13 +63,13 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
   const lastEpisode = seriesMedia?.lastWatchedEpisode
     ? seriesMedia.seasons
         .find((s) => s.seasonNum === seriesMedia.lastWatchedEpisode!.seasonNum)
-        ?.episodes.find((ep) => ep.episodeNum === seriesMedia.lastWatchedEpisode!.episodeNum)
+        ?.episodes.find((e) => e.episodeNum === seriesMedia.lastWatchedEpisode!.episodeNum)
     : undefined;
-  const canContinue = Boolean((movieMedia?.progress && movieMedia.progress > 0) || lastEpisode);
+  const canContinue = !!((movieMedia?.progress && movieMedia.progress > 0) || lastEpisode);
 
   const playFromStart = () => {
-    if (isSeries && activeSeason?.episodes[0]) onPlay(media, activeSeason.episodes[0], activeSeason.seasonNum);
-    else onPlay(media);
+    if (isSeries && activeSeason?.episodes[0]) onPlay(media, activeSeason.episodes[0], activeSeason.seasonNum, true);
+    else onPlay(media, undefined, 1, true);
   };
 
   const playContinue = () => {
@@ -72,7 +83,6 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
 
   return (
     <div id="zendit-media-detail" className="glass relative h-full min-h-0 rounded-2xl tv:rounded-[2.25rem] overflow-hidden">
-      {/* Soft blurred backdrop */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {(media.backdrop || media.poster) && (
           <img src={media.backdrop || media.poster} alt="" className="w-full h-full object-cover opacity-[0.14] blur-2xl scale-110" />
@@ -91,16 +101,22 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
         </button>
 
         <div className="flex flex-col sm:flex-row gap-5 tv:gap-[2.25rem]">
-          <div className="w-32 sm:w-40 tv:w-[17.5rem] shrink-0 aspect-[2/3] rounded-xl tv:rounded-[1.1rem] overflow-hidden bg-white/10 shadow-2xl">
+          <div
+            className={`w-32 sm:w-40 shrink-0 aspect-[2/3] rounded-xl tv:rounded-[1.1rem] overflow-hidden bg-white/10 shadow-2xl ${
+              compact ? 'tv:w-[14.5rem]' : 'tv:w-[20rem]'
+            }`}
+          >
             <PosterImage src={media.poster} />
           </div>
 
           <div className="flex-1 min-w-0 tv:pr-[5rem]">
             <div className="flex flex-wrap items-center gap-x-4 tv:gap-x-[1.4rem] gap-y-1 text-xs tv:text-[1.05rem] font-semibold">
-              <span className="flex items-center gap-1.5">
-                <Star className={`${metaIcon} text-amber-400 fill-amber-400`} />
-                {media.rating || 'N/A'}
-              </span>
+              {media.rating && media.rating !== 'N/A' && media.rating !== '0' && (
+                <span className="flex items-center gap-1.5">
+                  <Star className={`${metaIcon} text-amber-400 fill-amber-400`} />
+                  {media.rating}
+                </span>
+              )}
               <span className="flex items-center gap-1.5">
                 <Clock className={metaIcon} />
                 {isSeries ? `${seriesMedia?.seasonsCount || seriesMedia?.seasons.length || 0} Sezon` : movieMedia?.duration || '-'}
@@ -138,6 +154,17 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
                 <Play className="w-4 h-4 tv:w-[1.3rem] tv:h-[1.3rem] fill-current" />
                 Hemen İzle
               </button>
+              {onPlayTrailer && trailerInfo(media.trailer) && (
+                <button
+                  id="btn-detail-trailer"
+                  type="button"
+                  onClick={() => onPlayTrailer(media)}
+                  className={`${pill} bg-lilac text-white border-2 border-transparent`}
+                >
+                  <Clapperboard className="w-4 h-4 tv:w-[1.3rem] tv:h-[1.3rem]" />
+                  Fragman
+                </button>
+              )}
               <button
                 id="btn-detail-fav"
                 type="button"
@@ -157,20 +184,19 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
           </div>
         </div>
 
-        {/* Seasons & episodes */}
         {seriesMedia && seriesMedia.seasons.length > 0 && (
           <section className="mt-6 tv:mt-[2rem]">
             <div className="flex gap-2 tv:gap-[0.75rem] overflow-x-auto no-scrollbar pb-1 p-0.5">
-              {seriesMedia.seasons.map((season) => (
+              {seriesMedia.seasons.map((s) => (
                 <button
-                  key={season.seasonNum}
+                  key={s.seasonNum}
                   type="button"
-                  onClick={() => setSelectedSeason(season.seasonNum)}
+                  onClick={() => setSelectedSeason(s.seasonNum)}
                   className={`tv-focus shrink-0 rounded-full px-4 py-1.5 tv:px-[1.3rem] tv:py-[0.6rem] text-xs tv:text-[1.1rem] font-semibold whitespace-nowrap ${
-                    activeSeason?.seasonNum === season.seasonNum ? 'bg-white text-[#1B1938]' : 'bg-lilac text-white'
+                    activeSeason?.seasonNum === s.seasonNum ? 'bg-white text-[#1B1938]' : 'bg-lilac text-white'
                   }`}
                 >
-                  {season.title} · {season.episodes.length} Bölüm
+                  {s.title} · {s.episodes.length} Bölüm
                 </button>
               ))}
             </div>
@@ -200,7 +226,6 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
           </section>
         )}
 
-        {/* Same category */}
         {related.length > 0 && (
           <section className="mt-6 tv:mt-[2rem]">
             <h2 className="text-base tv:text-[1.6rem] font-bold mb-3 tv:mb-[1rem]">Aynı Kategori</h2>
@@ -209,11 +234,14 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => onSelectMedia?.(item)}
+                  onClick={() => {
+                    if (parental.hidden(kind, item)) parental.unlock().then((ok) => ok && onSelectMedia?.(item));
+                    else onSelectMedia?.(item);
+                  }}
                   title={item.title}
                   className="tv-focus-ring glass shrink-0 w-24 tv:w-[10.5rem] aspect-[2/3] rounded-xl tv:rounded-[1.25rem] overflow-hidden"
                 >
-                  <PosterImage src={item.poster} />
+                  <PosterImage src={item.poster} locked={parental.hidden(kind, item)} />
                 </button>
               ))}
             </div>

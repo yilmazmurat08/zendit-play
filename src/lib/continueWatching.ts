@@ -9,7 +9,7 @@ export type ContinueKind = 'live' | 'series' | 'movie';
 export const CONTINUE_LABELS: Record<ContinueKind, string> = { live: 'Canlı TV', series: 'Diziler', movie: 'Filmler' };
 
 const MAX_VOD = 60;
-const MAX_LIVE = 5;
+export const MAX_LIVE = 5;
 
 export interface ContinueLists {
   live: Channel[];

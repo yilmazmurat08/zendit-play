@@ -34,7 +34,7 @@ interface VideoPlayerModalProps {
 }
 
 const DEFAULT_FALLBACK_STREAM =
-  'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+  'https://download.blender.org/durian/trailer/sintel_trailer-480p.mp4';
 
 export function VideoPlayerModal({
   media,

@@ -19,7 +19,7 @@ import {
   FileCheck2,
 } from 'lucide-react';
 import { detectXtreamFromM3uUrl, loadXtreamAccount, type XtreamCredentials, type XtreamLoadProgress } from '../lib/xtreamApi';
-import { classifyM3UEntries, fetchM3UFromUrl, groupSeriesFromEntries, m3uEntryToChannel, m3uEntryToMovie, parseM3U, readM3UFile } from '../lib/m3uParser';
+import { classifyM3UEntries, fetchM3UFromUrl, groupSeriesFromEntries, m3uEntryToChannel, m3uEntryToMovie, parseM3U, playlistEpgUrl, readM3UFile } from '../lib/m3uParser';
 import { ZenditLogo } from './ZenditLogo';
 
 type TabKind = 'xtream' | 'm3u_url' | 'm3u_file';
@@ -115,6 +115,9 @@ export function AccountLoginModal({
         type: 'xtream',
         isActive: true,
         expiryDate: result.meta.expiryDate || undefined,
+        maxConnections: result.meta.maxConnections,
+        isTrial: result.meta.isTrial,
+        serverTimezone: result.meta.serverTimezone,
         status: 'active',
         channelsCount: result.channels.length,
         moviesCount: result.movies.length,
@@ -157,6 +160,9 @@ export function AccountLoginModal({
           type: 'xtream',
           isActive: true,
           expiryDate: result.meta.expiryDate || undefined,
+        maxConnections: result.meta.maxConnections,
+        isTrial: result.meta.isTrial,
+        serverTimezone: result.meta.serverTimezone,
           status: 'active',
           channelsCount: result.channels.length,
           moviesCount: result.movies.length,
@@ -183,6 +189,7 @@ export function AccountLoginModal({
         name: profileName.trim() || 'M3U Listesi',
         serverUrl: m3uUrl.trim(),
         username: '',
+        epgUrl: playlistEpgUrl(text),
         type: 'm3u_url',
         isActive: true,
         status: 'active',
@@ -217,6 +224,7 @@ export function AccountLoginModal({
         name: profileName.trim() || selectedFile.name,
         serverUrl: selectedFile.name,
         username: '',
+        epgUrl: playlistEpgUrl(text),
         type: 'm3u_file',
         isActive: true,
         status: 'active',
@@ -255,7 +263,7 @@ export function AccountLoginModal({
     >
       {variant === 'fullscreen' && !isLoading && (
         <div className="mb-8">
-          <ZenditLogo size="xl" showText />
+          <ZenditLogo size="xl" showText showTagline />
         </div>
       )}
 
@@ -264,7 +272,7 @@ export function AccountLoginModal({
           <div className="text-center pt-2">
             {variant === 'fullscreen' && (
               <div className="mb-5">
-                <ZenditLogo size="lg" />
+                <ZenditLogo size="lg" showText />
               </div>
             )}
             <h2 className="text-zinc-500 text-sm">Veriler indiriliyor</h2>
