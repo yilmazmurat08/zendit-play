@@ -1,5 +1,6 @@
 import type { Channel, Movie, Series, Season, Episode } from '../types';
 import { proxiedApiUrl } from './proxy';
+import { m3uCatchup } from './catchup';
 
 export interface M3UEntry {
   name: string;
@@ -8,6 +9,8 @@ export interface M3UEntry {
   groupTitle?: string;
   tvgId?: string;
   httpUserAgent?: string;
+  /** Catch-up template and archive days from the catchup / catchup-source attributes. */
+  catchup?: { source: string; days: number };
 }
 
 const ATTR_REGEX = /([a-zA-Z0-9-]+)="([^"]*)"/g;
@@ -28,11 +31,27 @@ function splitPipeParams(rawUrl: string): { url: string; userAgent?: string } {
   return { url, userAgent: uaMatch ? decodeURIComponent(uaMatch[1]) : undefined };
 }
 
+/** The playlist's own guide (url-tvg / x-tvg-url in the #EXTM3U header); several addresses joined by commas. */
+export function playlistEpgUrl(text: string): string | undefined {
+  const header = text
+    .slice(0, 4000)
+    .split(/\r?\n/)
+    .find((l) => l.trim().startsWith('#EXTM3U'));
+  if (!header) return undefined;
+  const m = header.match(/(?:url-tvg|x-tvg-url|tvg-url)="([^"]+)"/i);
+  const urls = m?.[1]
+    .split(',')
+    .map((u) => u.trim())
+    .filter((u) => /^https?:\/\//i.test(u));
+  return urls && urls.length ? urls.join(',') : undefined;
+}
+
 export function parseM3U(text: string): M3UEntry[] {
   const lines = text.split(/\r?\n/);
   const entries: M3UEntry[] = [];
   let pending: Partial<M3UEntry> | null = null;
   let pendingGroupFromExtgrp: string | undefined;
+  let pendingAttrs: Record<string, string> = {};
 
   for (const rawLine of lines) {
     const line = rawLine.trim();
@@ -57,6 +76,7 @@ export function parseM3U(text: string): M3UEntry[] {
         groupTitle: attrs['group-title'] || undefined,
         tvgId: attrs['tvg-id'] || undefined,
       };
+      pendingAttrs = attrs;
       pendingGroupFromExtgrp = undefined;
       continue;
     }
@@ -90,6 +110,7 @@ export function parseM3U(text: string): M3UEntry[] {
         groupTitle: pending.groupTitle || pendingGroupFromExtgrp,
         tvgId: pending.tvgId,
         httpUserAgent: pending.httpUserAgent || userAgent,
+        catchup: m3uCatchup(pendingAttrs, url) || undefined,
       });
       pending = null;
       pendingGroupFromExtgrp = undefined;
@@ -141,6 +162,10 @@ export function m3uEntryToChannel(entry: M3UEntry, index: number): Channel {
     resolution: 'HD',
     format,
     isFavorite: false,
+    epgId: entry.tvgId || undefined,
+    userAgent: entry.httpUserAgent || undefined,
+    archiveDays: entry.catchup?.days,
+    catchupSource: entry.catchup?.source,
   };
 }
 

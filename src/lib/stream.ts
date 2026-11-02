@@ -13,7 +13,7 @@ function isSafeDirectUrl(raw: string): boolean {
 
 export function isDemoSampleUrl(raw: string): boolean {
   try {
-    return new URL(raw, 'http://localhost').hostname === 'commondatastorage.googleapis.com';
+    return ['commondatastorage.googleapis.com', 'download.blender.org'].includes(new URL(raw, 'http://localhost').hostname);
   } catch {
     return false;
   }

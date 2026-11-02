@@ -1,7 +1,6 @@
-import React, { Fragment, useState } from 'react';
-import { ImageOff } from 'lucide-react';
-import { XtreamAccount } from '../types';
-import { DeviceInfo, getSubscription, useNow } from '../lib/tv';
+import React, { useState } from 'react';
+import { ImageOff, Lock, LockOpen } from 'lucide-react';
+import { useNow } from '../lib/tv';
 
 type IconProps = { className?: string; style?: React.CSSProperties };
 
@@ -53,8 +52,45 @@ export function HeartIcon({ className = '', style }: IconProps) {
   );
 }
 
-export function PosterImage({ src, className = '' }: { src?: string; className?: string }) {
+/** Poster / logo with a placeholder; `locked` (parental control) blurs it and shows a lock. */
+export function PosterImage({
+  src,
+  className = '',
+  locked = false,
+  small = false,
+}: {
+  src?: string;
+  className?: string;
+  locked?: boolean;
+  /** Small thumbnails (channel logos): lighter blur, smaller lock. */
+  small?: boolean;
+}) {
   const [failed, setFailed] = useState(false);
+  if (locked) {
+    return (
+      <span className={`relative block w-full h-full overflow-hidden bg-black/30 ${className}`}>
+        {src && !failed && (
+          <img
+            src={src}
+            alt=""
+            loading="lazy"
+            onError={() => setFailed(true)}
+            className="w-full h-full object-cover scale-125"
+            style={{ filter: `blur(${small ? 5 : 18}px) brightness(0.65)` }}
+          />
+        )}
+        <span className="absolute inset-0 flex items-center justify-center">
+          <span
+            className={`rounded-full bg-black/55 text-white flex items-center justify-center ${
+              small ? 'w-[70%] h-[70%] max-w-[2rem] max-h-[2rem]' : 'w-[38%] aspect-square max-w-[4.5rem]'
+            }`}
+          >
+            <Lock className="w-1/2 h-1/2" />
+          </span>
+        </span>
+      </span>
+    );
+  }
   if (!src || failed) {
     return (
       <div className={`w-full h-full flex items-center justify-center text-white/55 ${className}`}>
@@ -76,16 +112,20 @@ export function PosterImage({ src, className = '' }: { src?: string; className?:
 export interface CategoryItem {
   name: string;
   count?: number;
+  /** Under parental control: lock icon (open lock once the PIN was entered). */
+  locked?: boolean;
 }
 
 export function CategoryPanel({
   items,
   selected,
   onSelect,
+  unlocked = false,
 }: {
   items: CategoryItem[];
   selected: string;
   onSelect: (name: string) => void;
+  unlocked?: boolean;
 }) {
   return (
     <nav className="glass shrink-0 min-h-0 rounded-2xl tv:rounded-[2rem] p-2 tv:p-[1.1rem] flex tv:flex-col gap-1.5 tv:gap-[0.35rem] overflow-x-auto tv:overflow-x-hidden tv:overflow-y-auto no-scrollbar">
@@ -102,7 +142,18 @@ export function CategoryPanel({
             }`}
           >
             <span className="truncate">{cat.name}</span>
-            {cat.count !== undefined && <span className="text-[0.8em] font-medium opacity-50">{cat.count}</span>}
+            <span className="shrink-0 flex items-center gap-2 tv:gap-[0.5rem]">
+              {cat.count !== undefined && <span className="text-[0.8em] font-medium opacity-50">{cat.count}</span>}
+              {cat.locked &&
+                (unlocked ? (
+                  <LockOpen aria-label="Kilit açık" className="w-3.5 h-3.5 tv:w-[1.1rem] tv:h-[1.1rem] text-white/60" />
+                ) : (
+                  <Lock
+                    aria-label="Kilitli"
+                    className={`w-3.5 h-3.5 tv:w-[1.1rem] tv:h-[1.1rem] ${isActive ? 'text-white' : 'text-brand'}`}
+                  />
+                ))}
+            </span>
           </button>
         );
       })}
@@ -110,56 +161,26 @@ export function CategoryPanel({
   );
 }
 
-function InfoPairs({ rows }: { rows: [string, string][] }) {
-  return (
-    <div className="grid grid-cols-[auto_auto] justify-start gap-x-3 tv:gap-x-[1.25rem] leading-snug">
-      {rows.map(([label, value]) => (
-        <Fragment key={label}>
-          <span className="text-white/60 font-medium">{label}:</span>
-          <span className="font-semibold text-white truncate">{value}</span>
-        </Fragment>
-      ))}
-    </div>
-  );
-}
-
 interface FooterProps {
-  account: XtreamAccount | null;
-  device: DeviceInfo;
   variant?: 'home' | 'section';
   children?: React.ReactNode;
 }
 
-export function Footer({ account, device, variant = 'section', children }: FooterProps) {
+/** Bottom bar: clock and date on the home screen (TV layout), remote color-key hints on the other screens. */
+export function Footer({ variant = 'section', children }: FooterProps) {
   const now = useNow();
-  const sub = getSubscription(account);
-  const playlist = account?.name || '-';
-
   if (variant === 'home') {
     return (
-      <footer className="shrink-0 grid grid-cols-2 tv:grid-cols-3 items-end gap-3 text-[11px] tv:text-[1.05rem] pt-2 tv:pt-[1.1rem]">
-        <InfoPairs rows={[['Playlist', playlist], ['Bitiş', sub.expiry]]} />
-        <div className="justify-self-end tv:justify-self-center">
-          <InfoPairs rows={[['Cihaz ID', device.id], ['Cihaz PIN', device.pin]]} />
-        </div>
-        <div className="hidden tv:block justify-self-end text-right font-semibold leading-snug">
-          <div>{now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</div>
-          <div className="text-white/80">
-            {now.toLocaleDateString('tr-TR', { weekday: 'short', day: 'numeric', month: 'short' })}
-          </div>
-        </div>
+      <footer className="hidden tv:flex shrink-0 justify-end items-baseline gap-[0.9rem] pt-[0.9rem] text-[1.05rem] font-semibold">
+        <span>{now.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}</span>
+        <span className="text-white/70">{now.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
       </footer>
     );
   }
-
+  if (!children) return null;
   return (
-    <footer className="shrink-0 flex flex-wrap items-center justify-between gap-x-8 gap-y-2 px-4 tv:px-[5rem] py-2.5 tv:py-[1.1rem] text-[11px] tv:text-[1.05rem]">
-      <div className="flex items-center gap-4 tv:gap-[1.5rem]">
-        <InfoPairs rows={[['Cihaz ID', device.id], ['Playlist', playlist]]} />
-        <span className="w-px self-stretch bg-white/25" />
-        <InfoPairs rows={[['Cihaz PIN', device.pin], ['Bitiş', sub.expiry]]} />
-      </div>
-      {children && <div className="flex flex-wrap items-center gap-x-5 gap-y-1 tv:gap-x-[2.75rem]">{children}</div>}
+    <footer className="shrink-0 flex flex-wrap items-center justify-end gap-x-5 gap-y-1 tv:gap-x-[2.75rem] px-4 tv:px-[5rem] py-2.5 tv:py-[1rem] text-[11px] tv:text-[1.05rem]">
+      {children}
     </footer>
   );
 }
