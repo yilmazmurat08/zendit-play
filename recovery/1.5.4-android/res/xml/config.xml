@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<widget xmlns:cdv="http://cordova.apache.org/ns/1.0" xmlns:appjrx="http://www.w3.org/ns/widgets" version="1.0.0">
+    <access origin="*"/>
+</widget>

@@ -9,4 +9,8 @@ uygulamaya derlenmez.
 - `1.5.4-web/*.css`, `index.html`: derlenmiş stil ve giriş sayfası.
 - `1.5.4-web/demo/`: geliştirme demosunun kurgusal görselleri.
 
-Android (Java) sınıfları henüz çıkarılmadı.
+- `1.5.4-android/java/`: `com.zendit.play` paketinin jadx 1.5.3 ile çözülmüş Java kodu (PlayerActivity,
+  NativePlayerPlugin, EpgPlugin, EpgStore, CatchupUrl, StreamPlayers, PlayerGestures, RowAdapter...).
+  Değişken adlarının bir kısmı ve yorumlar kayıp; jadx'in "WARN" notları olan yerler elle düzeltilmeli.
+- `1.5.4-android/AndroidManifest.xml`, `res/`: birleştirilmiş manifest, oynatıcı düzenleri
+  (`zendit_player*.xml`), ikonlar, splash, TV banner'ı, `xml/` ve değer dosyaları.

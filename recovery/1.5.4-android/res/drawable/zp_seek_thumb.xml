@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="oval">
+            <size
+                android:height="26dp"
+                android:width="26dp"/>
+            <solid android:color="@color/zp_brand"/>
+            <stroke
+                android:width="3dp"
+                android:color="#ffffff"/>
+        </shape>
+    </item>
+    <item android:state_pressed="true">
+        <shape android:shape="oval">
+            <size
+                android:height="24dp"
+                android:width="24dp"/>
+            <solid android:color="@color/zp_brand"/>
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="oval">
+            <size
+                android:height="18dp"
+                android:width="18dp"/>
+            <solid android:color="@color/zp_brand"/>
+        </shape>
+    </item>
+</selector>
