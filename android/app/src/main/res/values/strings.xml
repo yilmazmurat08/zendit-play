@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Zendit Play</string>
+    <string name="title_activity_main">Zendit Play</string>
+    <string name="package_name">com.zendit.play</string>
+    <string name="custom_url_scheme">com.zendit.play</string>
+</resources>

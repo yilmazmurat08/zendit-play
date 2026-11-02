@@ -1,0 +1,6 @@
+{
+  "name": "Zendit Play",
+  "description": "Xtream Codes ve M3U ile çalışan, modern ve akıcı bir IPTV & medya oynatıcı arayüzü.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

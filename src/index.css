@@ -1,0 +1,175 @@
+@import "tailwindcss";
+
+/*
+ * TV / landscape layout: `tv:` classes apply while <html> has the `tv-layout`
+ * class, which src/lib/tv.ts sets on landscape screens >= 640px wide (TV, and
+ * tablets / foldables / phones held sideways). There the main UI is drawn on a
+ * stage designed for 1920x1080 that App scales to the screen (useTvStage), so
+ * tv: sizes are written for 1920x1080. Portrait screens get the stacked mobile layout.
+ */
+@custom-variant tv (&:where(.tv-layout *));
+
+@theme {
+  --default-font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --color-brand: #FF5B3D;
+  --color-brand-dark: #E84A2E;
+  --color-alert: #FF2E43;
+  --color-surface: #2A2750;
+  --color-lilac: rgba(150, 160, 255, 0.24);
+}
+
+@layer base {
+  :root {
+    --app-background:
+      radial-gradient(65% 70% at 95% -12%, rgba(226, 20, 50, 0.72), transparent 65%),
+      radial-gradient(40% 45% at 0% 0%, rgba(128, 26, 86, 0.4), transparent 70%),
+      radial-gradient(70% 55% at 45% 115%, rgba(42, 58, 140, 0.5), transparent 70%),
+      linear-gradient(160deg, #2B1B3F 0%, #1F1B3E 45%, #19193A 100%);
+  }
+
+  html {
+    background-color: #1B1938;
+  }
+
+  body {
+    min-height: 100vh;
+    background-color: #1B1938;
+    background-image: var(--app-background);
+    background-attachment: fixed;
+    color: #F5F5FA;
+    overflow-x: hidden;
+    user-select: none;
+  }
+
+  :focus-visible {
+    outline: 0.15rem solid #FF5B3D;
+    outline-offset: 0.15rem;
+  }
+}
+
+/* Full-screen layers (settings, analytics) use the same background as the page. */
+.app-bg {
+  background-color: #1B1938;
+  background-image: var(--app-background);
+}
+
+/* Home menu tiles: each tile sets --tile ("R G B") to its own vivid color -
+   tinted glass, a diagonal light streak, colored border and a glowing icon. */
+.menu-tile {
+  --tint: 0.28;
+  --sheen: 0.34;
+  outline: none;
+  background-color: rgba(18, 15, 40, 0.78);
+  background-image:
+    linear-gradient(45deg, transparent 31%, rgb(var(--tile) / var(--sheen)) 42%, transparent 53%),
+    radial-gradient(90% 70% at 0% 0%, rgb(var(--tile) / var(--tint)), transparent 70%),
+    radial-gradient(90% 70% at 100% 100%, rgb(var(--tile) / var(--tint)), transparent 70%);
+  border: 1px solid rgb(var(--tile) / 0.4);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.menu-tile .menu-icon {
+  color: rgb(var(--tile));
+  filter: drop-shadow(0 0 0.8rem rgb(var(--tile) / 0.75));
+}
+
+.menu-tile:focus-visible {
+  --tint: 0.5;
+  --sheen: 0.55;
+  border-color: rgb(var(--tile));
+  box-shadow: 0 0 0 0.2rem rgb(var(--tile) / 0.85), 0 1.5rem 3rem -1rem rgb(var(--tile) / 0.65);
+  transform: scale(1.03);
+}
+
+@media (hover: hover) {
+  .menu-tile:hover {
+    --tint: 0.45;
+    --sheen: 0.5;
+    border-color: rgb(var(--tile) / 0.9);
+  }
+}
+
+/* Unlayered on purpose: these win over Tailwind utilities (e.g. a selected
+   item's bg-* class) so hover / D-pad focus always shows the coral state. */
+.glass {
+  background-image: linear-gradient(155deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.035));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.tv-focus {
+  outline: none;
+  transition: transform 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+}
+
+.tv-focus:focus-visible {
+  outline: none;
+  background-image: none;
+  background-color: #FF5B3D;
+  border-color: rgba(255, 255, 255, 0.35);
+  color: #fff;
+  box-shadow: 0 1.25rem 2.5rem -1.25rem rgba(255, 91, 61, 0.8);
+}
+
+@media (hover: hover) {
+  .tv-focus:hover {
+    background-image: none;
+    background-color: #FF5B3D;
+    border-color: rgba(255, 255, 255, 0.35);
+    color: #fff;
+  }
+}
+
+.tv-focus-ring {
+  outline: none;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.tv-focus-ring:focus-visible {
+  outline: none;
+  transform: scale(1.04);
+  box-shadow: 0 0 0 0.2rem #FF5B3D, 0 1rem 2rem -1rem rgba(255, 91, 61, 0.8);
+}
+
+@media (hover: hover) {
+  .tv-focus-ring:hover {
+    box-shadow: 0 0 0 0.2rem #FF5B3D;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 91, 61, 0.6);
+}
+
+/* Text color helpers */
+.text-neon-cyan {
+  color: #FF5B3D;
+}
+
+.text-neon-purple {
+  color: #7C4DFF;
+}
+
+/* Hide scrollbar utility for smooth horizontal category bars */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
