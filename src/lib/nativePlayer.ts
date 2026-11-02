@@ -14,7 +14,8 @@ export interface NativePlayerItem {
   url: string;
   title?: string;
   subtitle?: string;
-  kind?: 'live' | 'movie' | 'series';
+  /** 'catchup' = archive playback of a live channel. */
+  kind?: 'live' | 'movie' | 'series' | 'catchup';
   /** Channel number shown in the overlay (live only). */
   number?: number;
   userAgent?: string;
