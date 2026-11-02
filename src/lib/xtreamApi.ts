@@ -1,4 +1,5 @@
 import type { Channel, Movie, Series, Season, Episode } from '../types';
+import type { EpgProgramme } from './epg';
 import { proxiedApiUrl } from './proxy';
 
 export interface XtreamCredentials {
@@ -21,6 +22,8 @@ export interface XtreamAccountMeta {
   expiryDate: string | null;
   isTrial: boolean;
   maxConnections: number | null;
+  /** server_info.timezone (e.g. "Europe/Istanbul"): catch-up addresses use the server's local time. */
+  serverTimezone: string;
 }
 
 export interface XtreamLoadProgress {
@@ -101,6 +104,7 @@ export async function xtreamLogin(creds: XtreamCredentials): Promise<XtreamAccou
     expiryDate: expTimestamp ? new Date(expTimestamp * 1000).toISOString().slice(0, 10) : null,
     isTrial: String(userInfo.is_trial) === '1',
     maxConnections: userInfo.max_connections ? Number(userInfo.max_connections) : null,
+    serverTimezone: typeof data?.server_info?.timezone === 'string' ? data.server_info.timezone.trim() : '',
   };
 }
 
@@ -139,12 +143,33 @@ function extractYear(dateStr: string | undefined): number {
   return match ? Number(match[1]) : new Date().getFullYear();
 }
 
+/** First non-empty string (panels send the trailer as youtube_trailer, some as trailer). */
+function firstText(...values: unknown[]): string | undefined {
+  for (const v of values) if (typeof v === 'string' && v.trim()) return v.trim();
+  return undefined;
+}
+
+/** Days of archive (catch-up) a channel offers; undefined when it has none. */
+function archiveDaysOf(tvArchive: unknown, duration: unknown): number | undefined {
+  if (!(tvArchive === 1 || tvArchive === '1' || tvArchive === true)) return undefined;
+  const days = Math.floor(Number(duration) || 0);
+  return days > 0 ? days : 1;
+}
+
+function adultFlag(value: unknown): true | undefined {
+  return value === 1 || value === '1' || value === true ? true : undefined;
+}
+
 interface RawLiveStream {
   num: number;
   name: string;
   stream_id: number;
   stream_icon?: string;
   category_id?: string;
+  epg_channel_id?: string | null;
+  is_adult?: number | string;
+  tv_archive?: number | string;
+  tv_archive_duration?: number | string;
 }
 
 export function buildLiveStreamUrl(creds: XtreamCredentials, streamId: number, ext: 'm3u8' | 'ts'): string {
@@ -173,6 +198,9 @@ async function fetchChannels(creds: XtreamCredentials, liveFormat: '.ts' | '.m3u
     format: ext === 'ts' ? '.ts' : '.m3u8',
     isFavorite: false,
     streamId: r.stream_id,
+    epgId: r.epg_channel_id ? String(r.epg_channel_id) : undefined,
+    isAdult: adultFlag(r.is_adult),
+    archiveDays: archiveDaysOf(r.tv_archive, r.tv_archive_duration),
   }));
 }
 
@@ -185,6 +213,7 @@ interface RawVodStream {
   container_extension?: string;
   rating?: string | number;
   rating_5based?: string | number;
+  is_adult?: number | string;
 }
 
 export function buildVodStreamUrl(creds: XtreamCredentials, streamId: number, ext: string): string {
@@ -213,6 +242,7 @@ async function fetchMovies(creds: XtreamCredentials): Promise<Movie[]> {
       streamUrl: buildVodStreamUrl(creds, r.stream_id, ext),
       category: categories.get(String(r.category_id)) || 'Diğer',
       isFavorite: false,
+      isAdult: adultFlag(r.is_adult),
     } satisfies Movie;
   });
 }
@@ -235,6 +265,7 @@ export async function fetchVodDetail(creds: XtreamCredentials, movie: Movie): Pr
     poster: info.movie_image || movie.poster,
     rating: info.rating ? String(info.rating) : movie.rating,
     streamUrl: ext ? buildVodStreamUrl(creds, streamId, ext) : movie.streamUrl,
+    trailer: firstText(info.youtube_trailer, info.trailer) || movie.trailer,
   };
 }
 
@@ -251,6 +282,9 @@ interface RawSeries {
   rating?: string | number;
   rating_5based?: string | number;
   category_id?: string;
+  youtube_trailer?: string;
+  trailer?: string;
+  is_adult?: number | string;
 }
 
 export function buildSeriesEpisodeUrl(creds: XtreamCredentials, episodeId: number, ext: string): string {
@@ -277,6 +311,8 @@ async function fetchSeriesList(creds: XtreamCredentials): Promise<Series[]> {
     category: categories.get(String(r.category_id)) || 'Diğer',
     seasons: [],
     isFavorite: false,
+    trailer: firstText(r.youtube_trailer, r.trailer),
+    isAdult: adultFlag(r.is_adult),
   } satisfies Series));
 }
 
@@ -320,7 +356,20 @@ export async function fetchSeriesDetail(creds: XtreamCredentials, series: Series
     genres: info.genre ? String(info.genre).split(',').map((s: string) => s.trim()).filter(Boolean) : series.genres,
     backdrop: info.backdrop_path?.[0] || series.backdrop,
     poster: info.cover || series.poster,
+    trailer: firstText(info.youtube_trailer, info.trailer) || series.trailer,
   };
+}
+
+/** The panel's XMLTV guide (xmltv.php) for the EPG download. */
+export function xmltvUrl(creds: XtreamCredentials): string {
+  const base = normalizeServerUrl(creds.serverUrl);
+  const params = new URLSearchParams({ username: creds.username, password: creds.password });
+  return `${base}/xmltv.php?${params.toString()}`;
+}
+
+/** get_short_epg address; the native player uses it for channels the XMLTV guide does not cover. */
+export function shortEpgUrl(creds: XtreamCredentials, streamId: number, limit: number = 6): string {
+  return apiUrl(creds, 'get_short_epg', { stream_id: streamId, limit });
 }
 
 export interface ShortEpgResult {
@@ -339,39 +388,81 @@ function decodeEpgBase64(value: string | undefined): string {
         .split('')
         .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
         .join('')
-    );
+    ).trim();
   } catch {
     return value;
   }
 }
 
-function formatHHmm(unixSeconds: number): string {
-  if (!unixSeconds) return '--:--';
-  const d = new Date(unixSeconds * 1000);
+/** "2026-10-05 21:00:00" (panel local time) to epoch ms; used when the *_timestamp fields are missing. */
+function parseEpgTime(value: unknown): number {
+  if (typeof value !== 'string') return 0;
+  const m = value.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (!m) return 0;
+  return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)).getTime();
+}
+
+function formatHHmm(ms: number): string {
+  if (!ms) return '--:--';
+  const d = new Date(ms);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-export async function fetchShortEpg(creds: XtreamCredentials, streamId: number): Promise<ShortEpgResult | null> {
+function toProgramme(l: any): EpgProgramme {
+  const start = Number(l.start_timestamp) * 1000 || parseEpgTime(l.start);
+  const stop = Number(l.stop_timestamp ?? l.end_timestamp) * 1000 || parseEpgTime(l.end ?? l.stop);
+  return { start, stop, title: decodeEpgBase64(l.title), desc: decodeEpgBase64(l.description) || undefined };
+}
+
+/** Upcoming programmes of one channel from get_short_epg (now, next, ...). */
+export async function fetchShortEpgList(creds: XtreamCredentials, streamId: number, limit: number = 6): Promise<EpgProgramme[]> {
   try {
-    const data = await xtreamFetch<any>(creds, 'get_short_epg', { stream_id: streamId, limit: 2 });
-    const listings = data?.epg_listings;
-    if (!Array.isArray(listings) || listings.length === 0) return null;
-    const now = listings[0];
-    const next = listings[1];
-    const start = Number(now.start_timestamp);
-    const end = Number(now.stop_timestamp);
-    const nowTs = Date.now() / 1000;
-    const progress = end > start ? Math.min(100, Math.max(0, Math.round(((nowTs - start) / (end - start)) * 100))) : 0;
-    return {
-      currentShow: decodeEpgBase64(now.title),
-      nextShow: next ? decodeEpgBase64(next.title) : '',
-      epgStart: formatHHmm(start),
-      epgEnd: formatHHmm(end),
-      progress,
-    };
+    const data = await xtreamFetch<any>(creds, 'get_short_epg', { stream_id: streamId, limit });
+    const listings: any[] = Array.isArray(data?.epg_listings) ? data.epg_listings : [];
+    return listings
+      .map(toProgramme)
+      .filter((p) => p.start > 0 && p.stop > p.start && p.title)
+      .sort((a, b) => a.start - b.start);
   } catch {
-    return null;
+    return [];
   }
+}
+
+/** Full schedule of one channel including past days (get_simple_data_table), for catch-up. */
+export async function fetchArchiveEpg(creds: XtreamCredentials, streamId: number): Promise<EpgProgramme[]> {
+  try {
+    const data = await xtreamFetch<any>(creds, 'get_simple_data_table', { stream_id: streamId });
+    const listings: any[] = Array.isArray(data?.epg_listings) ? data.epg_listings : [];
+    const seen = new Set<number>();
+    return listings
+      .map(toProgramme)
+      .filter((p) => {
+        if (!(p.start > 0 && p.stop > p.start && p.title) || seen.has(p.start)) return false;
+        seen.add(p.start);
+        return true;
+      })
+      .sort((a, b) => a.start - b.start);
+  } catch {
+    return [];
+  }
+}
+
+/** Now / next texts and progress for the channel lists. */
+export function nowAndNext(programmes: EpgProgramme[], now: number = Date.now()): ShortEpgResult | null {
+  const current = programmes.find((p) => p.start <= now && now < p.stop);
+  if (!current) return null;
+  const next = programmes.find((p) => p.start >= current.stop);
+  return {
+    currentShow: current.title,
+    nextShow: next?.title || '',
+    epgStart: formatHHmm(current.start),
+    epgEnd: formatHHmm(current.stop),
+    progress: Math.min(100, Math.max(0, Math.round(((now - current.start) / (current.stop - current.start)) * 100))),
+  };
+}
+
+export async function fetchShortEpg(creds: XtreamCredentials, streamId: number): Promise<ShortEpgResult | null> {
+  return nowAndNext(await fetchShortEpgList(creds, streamId));
 }
 
 export async function loadXtreamAccount(
