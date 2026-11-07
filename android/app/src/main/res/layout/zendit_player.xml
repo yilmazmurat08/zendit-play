@@ -275,78 +275,71 @@
                     android:minWidth="52dp"
                     android:fontFeatureSettings="tnum"/>
             </LinearLayout>
-            <HorizontalScrollView
-                android:id="@+id/zp_tools_scroll"
-                android:scrollbars="none"
-                android:clipToPadding="false"
+            <!-- Tool chips wrap to a second row when they do not fit (phones), instead of scrolling off screen. -->
+            <com.zendit.play.ZpFlowLayout
+                android:id="@+id/zp_tools"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp">
-                <LinearLayout
-                    android:orientation="horizontal"
-                    android:id="@+id/zp_tools"
-                    android:paddingTop="4dp"
-                    android:paddingBottom="4dp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content">
-                    <TextView
-                        android:id="@+id/zp_tool_live"
-                        android:visibility="gone"
-                        android:text="Canlıya dön"
-                        android:drawableStart="@drawable/zp_ic_skip_next"
-                        style="@style/ZpChip"/>
-                    <TextView
-                        android:id="@+id/zp_tool_audio"
-                        android:text="Ses"
-                        android:drawableStart="@drawable/zp_ic_audio"
-                        style="@style/ZpChip"/>
-                    <TextView
-                        android:id="@+id/zp_tool_subtitles"
-                        android:text="Altyazı"
-                        android:drawableStart="@drawable/zp_ic_subtitles"
-                        style="@style/ZpChip"/>
-                    <TextView
-                        android:id="@+id/zp_tool_quality"
-                        android:text="Kalite"
-                        android:drawableStart="@drawable/zp_ic_hd"
-                        style="@style/ZpChip"/>
-                    <TextView
-                        android:id="@+id/zp_tool_aspect"
-                        android:text="Sığdır"
-                        android:drawableStart="@drawable/zp_ic_aspect"
-                        style="@style/ZpChip"/>
-                    <TextView
-                        android:id="@+id/zp_tool_speed"
-                        android:text="Hız 1x"
-                        android:drawableStart="@drawable/zp_ic_speed"
-                        style="@style/ZpChip"/>
-                    <TextView
-                        android:id="@+id/zp_tool_episodes"
-                        android:text="Bölümler"
-                        android:drawableStart="@drawable/zp_ic_list"
-                        style="@style/ZpChip"/>
-                    <TextView
-                        android:id="@+id/zp_tool_restart"
-                        android:text="Baştan başlat"
-                        android:drawableStart="@drawable/zp_ic_replay"
-                        style="@style/ZpChip"/>
-                    <TextView
-                        android:id="@+id/zp_tool_sleep"
-                        android:text="Uyku"
-                        android:drawableStart="@drawable/zp_ic_moon"
-                        style="@style/ZpChip"/>
-                    <TextView
-                        android:id="@+id/zp_tool_lock"
-                        android:text="Kilitle"
-                        android:drawableStart="@drawable/zp_ic_lock"
-                        style="@style/ZpChip"/>
-                    <TextView
-                        android:id="@+id/zp_tool_external"
-                        android:text="Harici oynatıcı"
-                        android:drawableStart="@drawable/zp_ic_external"
-                        style="@style/ZpChip"/>
-                </LinearLayout>
-            </HorizontalScrollView>
+                <TextView
+                    android:id="@+id/zp_tool_live"
+                    android:visibility="gone"
+                    android:text="Canlıya dön"
+                    android:drawableStart="@drawable/zp_ic_skip_next"
+                    style="@style/ZpChip"/>
+                <TextView
+                    android:id="@+id/zp_tool_audio"
+                    android:text="Ses"
+                    android:drawableStart="@drawable/zp_ic_audio"
+                    style="@style/ZpChip"/>
+                <TextView
+                    android:id="@+id/zp_tool_subtitles"
+                    android:text="Altyazı"
+                    android:drawableStart="@drawable/zp_ic_subtitles"
+                    style="@style/ZpChip"/>
+                <TextView
+                    android:id="@+id/zp_tool_quality"
+                    android:text="Kalite"
+                    android:drawableStart="@drawable/zp_ic_hd"
+                    style="@style/ZpChip"/>
+                <TextView
+                    android:id="@+id/zp_tool_aspect"
+                    android:text="Sığdır"
+                    android:drawableStart="@drawable/zp_ic_aspect"
+                    style="@style/ZpChip"/>
+                <TextView
+                    android:id="@+id/zp_tool_speed"
+                    android:text="Hız 1x"
+                    android:drawableStart="@drawable/zp_ic_speed"
+                    style="@style/ZpChip"/>
+                <TextView
+                    android:id="@+id/zp_tool_episodes"
+                    android:text="Bölümler"
+                    android:drawableStart="@drawable/zp_ic_list"
+                    style="@style/ZpChip"/>
+                <TextView
+                    android:id="@+id/zp_tool_restart"
+                    android:text="Baştan başlat"
+                    android:drawableStart="@drawable/zp_ic_replay"
+                    style="@style/ZpChip"/>
+                <TextView
+                    android:id="@+id/zp_tool_sleep"
+                    android:text="Uyku"
+                    android:drawableStart="@drawable/zp_ic_moon"
+                    style="@style/ZpChip"/>
+                <TextView
+                    android:id="@+id/zp_tool_lock"
+                    android:text="Kilitle"
+                    android:drawableStart="@drawable/zp_ic_lock"
+                    style="@style/ZpChip"/>
+                <TextView
+                    android:id="@+id/zp_tool_external"
+                    android:text="Harici oynatıcı"
+                    android:drawableStart="@drawable/zp_ic_external"
+                    style="@style/ZpChip"/>
+            </com.zendit.play.ZpFlowLayout>
         </LinearLayout>
     </FrameLayout>
     <LinearLayout

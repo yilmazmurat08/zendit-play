@@ -79,9 +79,14 @@ export function VodScreen({
   }, [items, allLabel, parental.config]);
 
   const selectCategory = (name: string) => {
+    const open = () => {
+      setSelectedCategory(name);
+      // Picking a category shows its list: close an open detail panel instead of keeping it on top.
+      if (selectedMedia) onCloseDetail();
+    };
     const locked = categories.find((c) => c.name === name && c.locked);
-    if (locked && parental.locked) parental.unlock().then((ok) => ok && setSelectedCategory(name));
-    else setSelectedCategory(name);
+    if (locked && parental.locked) parental.unlock().then((ok) => ok && open());
+    else open();
   };
 
   const filtered = useMemo(() => {
@@ -154,6 +159,13 @@ export function VodScreen({
     ro.observe(el);
     return () => ro.disconnect();
   }, [containerRef]);
+
+  // A new category, sort or search starts at the top. Otherwise the old scroll offset is kept and the
+  // first visible row can be cut off (only its captions show above the posters).
+  useEffect(() => {
+    const el = containerRef.current;
+    if (el && el.scrollTop !== 0) el.scrollTop = 0;
+  }, [selectedCategory, sortBy, searchQuery, containerRef]);
 
   const detail = selectedMedia && ('seasons' in selectedMedia) === (type === 'series') ? selectedMedia : null;
   const related = useMemo(
