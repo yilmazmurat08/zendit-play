@@ -99,7 +99,7 @@ export async function refreshEpg(options: {
   force?: boolean;
 }) {
   const { account, channels, settings, force = false } = options;
-  if (!settings.epgEnabled || !account || account.type === 'demo' || channels.length === 0) {
+  if (!settings.epgEnabled || !account || channels.length === 0) {
     generation++;
     setStatus({ state: 'off', error: '' });
     return;

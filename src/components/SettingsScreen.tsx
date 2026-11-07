@@ -715,9 +715,7 @@ export function SettingsScreen({
                 account
                   ? account.type === 'xtream'
                     ? 'Xtream Codes'
-                    : account.type === 'demo'
-                      ? 'Demo içerik'
-                      : 'M3U listesi'
+                    : 'M3U listesi'
                   : '-',
               ],
               [

@@ -11,7 +11,7 @@ import type {
   WatchLogEntry,
   XtreamAccount,
 } from './types';
-import { defaultSettings, demoChannels, demoMovies, demoSeries } from './data/mockData';
+import { defaultSettings } from './data/mockData';
 import { Header } from './components/Header';
 import { HomeScreen } from './components/HomeScreen';
 import { LiveTvScreen } from './components/LiveTvScreen';
@@ -100,14 +100,22 @@ function credsOf(account: XtreamAccount): XtreamCredentials {
 }
 const REFRESH_INTERVAL_MS = 864e5,
   MAX_PLAYLIST_ITEMS = 5e3;
+/**
+ * Older test builds could save a built-in demo account. The app ships no demo content any more:
+ * such an install starts again at the account screen (the demo lists are not user data).
+ */
+function hasSavedDemoAccount(): boolean {
+  return loadJson<{ type?: string } | null>('zendit_active_account', null)?.type === 'demo';
+}
 function episodeKey(seriesId: string, season: number, episode: number) {
   return `${seriesId}:s${season}e${episode}`;
 }
 export default function App() {
-  const [account, setAccount] = useState<XtreamAccount | null>(() => loadJson('zendit_active_account', null)),
-    [channels, setChannels] = useState<Channel[]>(() => loadJson('zendit_channels', [])),
-    [movies, setMovies] = useState<Movie[]>(() => loadJson('zendit_movies', [])),
-    [series, setSeries] = useState<Series[]>(() => loadJson('zendit_series', [])),
+  const [dropDemo] = useState(hasSavedDemoAccount),
+    [account, setAccount] = useState<XtreamAccount | null>(() => (dropDemo ? null : loadJson('zendit_active_account', null))),
+    [channels, setChannels] = useState<Channel[]>(() => (dropDemo ? [] : loadJson('zendit_channels', []))),
+    [movies, setMovies] = useState<Movie[]>(() => (dropDemo ? [] : loadJson('zendit_movies', []))),
+    [series, setSeries] = useState<Series[]>(() => (dropDemo ? [] : loadJson('zendit_series', []))),
     [settings, setSettings] = useState<AppSettings>(loadSettings),
     [watchLog, setWatchLog] = useState<WatchLogEntry[]>(() => loadJson('zendit_watch_log', [])),
     [positions, setPositions] = useState<Record<string, ResumePoint>>(() => loadJson('zendit_positions', {})),
@@ -207,7 +215,14 @@ export default function App() {
       loadStoredLists().then((xe) => {
         if (!J) {
           if (!xe) idbAvailableRef.current = false;
-          else {
+          else if (dropDemo) {
+            // Saved demo lists are discarded (see hasSavedDemoAccount).
+            clearStoredLists();
+            for (const Ke of LIST_KEYS)
+              try {
+                localStorage.removeItem(Ke);
+              } catch {}
+          } else {
             const Ie = { zendit_channels: setChannels, zendit_movies: setMovies, zendit_series: setSeries };
             for (const Ke of LIST_KEYS) {
               const Qe = xe[Ke];
@@ -628,24 +643,6 @@ export default function App() {
         setSeries(xe.series),
         setIsAccountOpen(false));
     },
-    handleUseDemo = () => {
-      (setAccount({
-        id: 'demo',
-        name: 'Demo İçerik',
-        serverUrl: '',
-        username: '',
-        type: 'demo',
-        isActive: true,
-        status: 'active',
-        channelsCount: demoChannels.length,
-        moviesCount: demoMovies.length,
-        seriesCount: demoSeries.length,
-      }),
-        setChannels(demoChannels),
-        setMovies(demoMovies),
-        setSeries(demoSeries),
-        setIsAccountOpen(false));
-    },
     mergeLists = (J: { channels: Channel[]; movies: Movie[]; series: Series[] }) => {
       const xe = new Set(channels.filter((Qe) => Qe.isFavorite).map((Qe) => Qe.id)),
         Ie = new Map<string, Movie>(movies.map((Qe) => [Qe.id, Qe])),
@@ -665,7 +662,7 @@ export default function App() {
         ));
     },
     refreshLists = async (J = false) => {
-      if (!account || account.type === 'demo') {
+      if (!account) {
         J || (setIsRefreshing(true), setTimeout(() => setIsRefreshing(false), 500));
         return;
       }
@@ -871,7 +868,6 @@ export default function App() {
         currentAccount={null}
         liveStreamFormat={settings.liveStreamFormat}
         onSaveAccount={handleSaveAccount}
-        onUseDemoContent={handleUseDemo}
       />
     );
   const openCategoryEditor = async () => {
@@ -1035,7 +1031,6 @@ export default function App() {
               currentAccount={account}
               liveStreamFormat={settings.liveStreamFormat}
               onSaveAccount={handleSaveAccount}
-              onUseDemoContent={handleUseDemo}
               onClose={() => setIsAccountOpen(false)}
             />
           </div>

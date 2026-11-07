@@ -61,7 +61,7 @@ export interface SubscriptionInfo {
 
 export function getSubscription(account: XtreamAccount | null): SubscriptionInfo {
   if (!account?.expiryDate) {
-    return { title: account?.type === 'demo' ? 'Demo' : 'Abonelik', remaining: 'Süresiz', expiry: 'Süresiz' };
+    return { title: 'Abonelik', remaining: 'Süresiz', expiry: 'Süresiz' };
   }
   const expiry = formatDate(account.expiryDate);
   const end = new Date(`${account.expiryDate}T23:59:59`).getTime();

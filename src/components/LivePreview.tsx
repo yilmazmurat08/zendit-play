@@ -4,7 +4,7 @@ import Hls from 'hls.js';
 import mpegts from 'mpegts.js';
 import { AlertCircle, Loader2, Maximize2, Tv } from 'lucide-react';
 import { Channel } from '../types';
-import { detectStreamKind, isDemoSampleUrl, proxiedStreamUrl } from '../lib/proxy';
+import { detectStreamKind, proxiedStreamUrl } from '../lib/proxy';
 import { isNativeApp, NativePlayer, toNativeRect } from '../lib/nativePlayer';
 
 interface LivePreviewProps {
@@ -79,7 +79,7 @@ export function LivePreview({ channel, active, onOpenFullscreen }: LivePreviewPr
 
     const raw = channel.streamUrl;
     const url = proxiedStreamUrl(raw);
-    const kind = isDemoSampleUrl(raw) ? 'native' : detectStreamKind(raw, channel);
+    const kind = detectStreamKind(raw, channel);
     let hls: Hls | null = null;
     let tsPlayer: any = null;
 

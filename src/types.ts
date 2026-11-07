@@ -12,7 +12,7 @@ export interface XtreamAccount {
   serverUrl: string;
   username: string;
   password?: string;
-  type: 'xtream' | 'm3u_url' | 'm3u_file' | 'demo';
+  type: 'xtream' | 'm3u_url' | 'm3u_file';
   isActive: boolean;
   expiryDate?: string;
   /** Concurrent connections allowed by the panel (Xtream `max_connections`). */

@@ -20,7 +20,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { AppSettings, Episode, Movie, Series, Channel } from '../types';
-import { detectStreamKind, isDemoSampleUrl, proxiedStreamUrl } from '../lib/proxy';
+import { detectStreamKind, proxiedStreamUrl } from '../lib/proxy';
 import { buildAndroidIntentUrl } from '../lib/externalPlayer';
 
 interface VideoPlayerModalProps {
@@ -33,8 +33,7 @@ interface VideoPlayerModalProps {
   onMediaWatched?: (id: string, type: 'movie' | 'series' | 'live') => void;
 }
 
-const DEFAULT_FALLBACK_STREAM =
-  'https://download.blender.org/durian/trailer/sintel_trailer-480p.mp4';
+const NO_STREAM_MESSAGE = 'Bu içerik için yayın adresi bulunamadı.';
 
 export function VideoPlayerModal({
   media,
@@ -80,10 +79,10 @@ export function VideoPlayerModal({
 
   const isSeries = 'seasons' in media;
   const rawStreamUrl = isSeries
-    ? activeEpisode?.streamUrl || media.seasons[0]?.episodes[0]?.streamUrl || DEFAULT_FALLBACK_STREAM
+    ? activeEpisode?.streamUrl || media.seasons[0]?.episodes[0]?.streamUrl || ''
     : 'streamUrl' in media && media.streamUrl
     ? media.streamUrl
-    : DEFAULT_FALLBACK_STREAM;
+    : '';
 
   const title = isSeries
     ? `${media.title} - S${activeSeasonNum}E${activeEpisode?.episodeNum || 1}: ${activeEpisode?.title || ''}`
@@ -98,7 +97,7 @@ export function VideoPlayerModal({
     : (media as Movie).synopsis;
 
   useEffect(() => {
-    setActiveStreamUrl(proxiedStreamUrl(rawStreamUrl || DEFAULT_FALLBACK_STREAM));
+    setActiveStreamUrl(rawStreamUrl ? proxiedStreamUrl(rawStreamUrl) : '');
   }, [rawStreamUrl]);
 
   useEffect(() => {
@@ -118,8 +117,15 @@ export function VideoPlayerModal({
   useEffect(() => {
     if (useExternalPlayer) return;
     const video = videoRef.current;
-    const url = activeStreamUrl || DEFAULT_FALLBACK_STREAM;
+    const url = activeStreamUrl;
     if (!video) return;
+    if (!url) {
+      // Never swap in another video: a missing address is shown as an error.
+      setIsLoading(false);
+      setHasError(true);
+      setErrorMessage(NO_STREAM_MESSAGE);
+      return;
+    }
 
     setIsLoading(true);
     setHasError(false);
@@ -138,15 +144,10 @@ export function VideoPlayerModal({
       mpegtsRef.current = null;
     }
 
-    const isDemoContent = isDemoSampleUrl(rawStreamUrl || '');
     const failPlayback = (message: string) => {
-      if (isDemoContent) {
-        setActiveStreamUrl(DEFAULT_FALLBACK_STREAM);
-      } else {
-        setIsLoading(false);
-        setHasError(true);
-        setErrorMessage(message);
-      }
+      setIsLoading(false);
+      setHasError(true);
+      setErrorMessage(message);
     };
 
     const streamKind = detectStreamKind(rawStreamUrl || '', media);
@@ -266,19 +267,15 @@ export function VideoPlayerModal({
 
   const handleVideoError = () => {
     console.warn('HTML5 Video source error handled.');
-    if (isDemoSampleUrl(rawStreamUrl || '') && activeStreamUrl !== DEFAULT_FALLBACK_STREAM) {
-      setActiveStreamUrl(DEFAULT_FALLBACK_STREAM);
-    } else {
-      setIsLoading(false);
-      setHasError(true);
-      setErrorMessage('Akış oynatılamadı. Sunucu adresini, hesap durumunu ve internet bağlantınızı kontrol edip tekrar deneyin.');
-    }
+    setIsLoading(false);
+    setHasError(true);
+    setErrorMessage('Akış oynatılamadı. Sunucu adresini, hesap durumunu ve internet bağlantınızı kontrol edip tekrar deneyin.');
   };
 
   const handleRetryPlayback = () => {
     setHasError(false);
     setIsLoading(true);
-    setActiveStreamUrl(proxiedStreamUrl(rawStreamUrl || DEFAULT_FALLBACK_STREAM));
+    setActiveStreamUrl(rawStreamUrl ? proxiedStreamUrl(rawStreamUrl) : '');
   };
 
   const resetControlsTimer = () => {

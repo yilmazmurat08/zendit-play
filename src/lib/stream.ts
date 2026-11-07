@@ -11,14 +11,6 @@ function isSafeDirectUrl(raw: string): boolean {
   }
 }
 
-export function isDemoSampleUrl(raw: string): boolean {
-  try {
-    return ['commondatastorage.googleapis.com', 'download.blender.org'].includes(new URL(raw, 'http://localhost').hostname);
-  } catch {
-    return false;
-  }
-}
-
 export type StreamKind = 'hls' | 'mpegts' | 'native';
 
 export function detectStreamKind(rawUrl: string, media?: { format?: '.ts' | '.m3u8' } | any | null): StreamKind {

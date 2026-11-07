@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties, type ReactNode } from 'react';
 import { XtreamAccount, Channel, Movie, Series } from '../types';
 import {
   Tv,
@@ -12,15 +12,19 @@ import {
   EyeOff,
   Check,
   X,
-  Sparkles,
   Loader2,
   AlertCircle,
   Upload,
   FileCheck2,
+  LogIn,
+  Move,
+  CornerDownLeft,
+  Undo2,
 } from 'lucide-react';
 import { detectXtreamFromM3uUrl, loadXtreamAccount, type XtreamCredentials, type XtreamLoadProgress } from '../lib/xtreamApi';
 import { classifyM3UEntries, fetchM3UFromUrl, groupSeriesFromEntries, m3uEntryToChannel, m3uEntryToMovie, parseM3U, playlistEpgUrl, readM3UFile } from '../lib/m3uParser';
 import { ZenditLogo } from './ZenditLogo';
+import { useIsTv, useTvStage } from '../lib/tv';
 
 type TabKind = 'xtream' | 'm3u_url' | 'm3u_file';
 
@@ -34,7 +38,6 @@ interface AccountLoginModalProps {
   currentAccount: XtreamAccount | null;
   liveStreamFormat: '.ts' | '.m3u8' | '.mpd';
   onSaveAccount: (account: XtreamAccount, data: LoadedData) => void;
-  onUseDemoContent: () => void;
   onClose?: () => void;
   variant?: 'modal' | 'fullscreen';
 }
@@ -52,15 +55,14 @@ export function AccountLoginModal({
   currentAccount,
   liveStreamFormat,
   onSaveAccount,
-  onUseDemoContent,
   onClose,
   variant = 'modal',
 }: AccountLoginModalProps) {
   const [activeTab, setActiveTab] = useState<TabKind>(
-    currentAccount && currentAccount.type !== 'demo' ? (currentAccount.type as TabKind) : 'xtream'
+    currentAccount ? (currentAccount.type as TabKind) : 'xtream'
   );
 
-  const [profileName, setProfileName] = useState(currentAccount?.type !== 'demo' ? currentAccount?.name || '' : '');
+  const [profileName, setProfileName] = useState(currentAccount?.name || '');
   const [serverUrl, setServerUrl] = useState(currentAccount?.type === 'xtream' ? currentAccount.serverUrl : '');
   const [username, setUsername] = useState(currentAccount?.type === 'xtream' ? currentAccount.username : '');
   const [password, setPassword] = useState('');
@@ -251,6 +253,101 @@ export function AccountLoginModal({
       : activeTab === 'm3u_url'
       ? m3uUrl.trim().length > 0
       : !!selectedFile;
+
+  const isTv = useIsTv();
+  const stage = useTvStage();
+  if (isTv && variant === 'fullscreen' && !isLoading) {
+    return (
+      <TvAccountScreen
+        stageStyle={stage.style}
+        activeTab={activeTab}
+        onTab={(tab) => {
+          setActiveTab(tab);
+          setError(null);
+        }}
+        error={error}
+        canSubmit={canSubmit}
+        onSubmit={handleSave}
+        fields={
+          <>
+            <TvField label="Liste adı (isteğe bağlı)" icon={<Tag />} full>
+              <input
+                type="text"
+                value={profileName}
+                onChange={(e) => setProfileName(e.target.value)}
+                placeholder="Örn. Ev aboneliğim"
+                className={TV_INPUT}
+              />
+            </TvField>
+            {activeTab === 'xtream' && (
+              <>
+                <TvField label="Sunucu URL" icon={<Globe />} full>
+                  <input
+                    type="text"
+                    value={serverUrl}
+                    onChange={(e) => setServerUrl(e.target.value)}
+                    placeholder="http://sunucu-adresi:port"
+                    className={`${TV_INPUT} font-mono`}
+                  />
+                </TvField>
+                <TvField label="Kullanıcı adı" icon={<User />}>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="kullanici_adi"
+                    className={TV_INPUT}
+                  />
+                </TvField>
+                <TvField label="Şifre" icon={<Lock />}>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className={`${TV_INPUT} font-mono`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Şifreyi gizle' : 'Şifreyi göster'}
+                    className="tv-focus-ring shrink-0 w-[3.2rem] h-[3.2rem] rounded-full flex items-center justify-center text-white/55"
+                  >
+                    {showPassword ? <EyeOff className="w-[1.6rem] h-[1.6rem]" /> : <Eye className="w-[1.6rem] h-[1.6rem]" />}
+                  </button>
+                </TvField>
+              </>
+            )}
+            {activeTab === 'm3u_url' && (
+              <TvField label="M3U adresi" icon={<LinkIcon />} full>
+                <input
+                  type="text"
+                  value={m3uUrl}
+                  onChange={(e) => setM3uUrl(e.target.value)}
+                  placeholder="http://sunucu-adresi/liste.m3u8"
+                  className={`${TV_INPUT} font-mono`}
+                />
+              </TvField>
+            )}
+            {activeTab === 'm3u_file' && (
+              <TvField label="M3U dosyası" icon={selectedFile ? <FileCheck2 /> : <Upload />} full>
+                <label htmlFor="m3u-file-input-tv" tabIndex={0} className="flex-1 min-w-0 truncate cursor-pointer outline-none">
+                  {selectedFile ? selectedFile.name : '.m3u / .m3u8 dosyası seçin'}
+                </label>
+                <input
+                  id="m3u-file-input-tv"
+                  type="file"
+                  accept=".m3u,.m3u8,text/plain"
+                  className="hidden"
+                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                />
+              </TvField>
+            )}
+          </>
+        }
+      />
+    );
+  }
 
   return (
     <div
@@ -476,13 +573,6 @@ export function AccountLoginModal({
             )}
           </div>
 
-          <div className="mt-4 flex justify-end">
-            <button onClick={() => onUseDemoContent()} className="text-xs text-[#FF5B3D] flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Demo içerikle görüntüle</span>
-            </button>
-          </div>
-
           <div className="mt-5 flex items-center justify-between gap-3">
             {onClose && (
               <button
@@ -504,6 +594,123 @@ export function AccountLoginModal({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ---------- TV (landscape) first-run screen ---------- */
+
+const TV_INPUT =
+  'flex-1 min-w-0 self-stretch bg-transparent border-0 outline-none text-white text-[1.45rem] placeholder:text-white/40';
+
+const TV_TABS: { kind: TabKind; label: string; Icon: typeof Tv }[] = [
+  { kind: 'xtream', label: 'Xtream', Icon: Tv },
+  { kind: 'm3u_url', label: 'M3U URL', Icon: LinkIcon },
+  { kind: 'm3u_file', label: 'M3U Dosya', Icon: FileText },
+];
+
+function TvField({ label, icon, full = false, children }: { label: string; icon: ReactNode; full?: boolean; children: ReactNode }) {
+  return (
+    <label className={`block ${full ? 'col-span-2' : ''}`}>
+      <span className="block text-[1.15rem] font-semibold text-white/60 mb-[0.55rem] ml-[0.2rem]">{label}</span>
+      <span className="tv-field flex items-center gap-[1rem] h-[4.6rem] px-[1.4rem] rounded-[1.15rem] bg-[#2A2750] text-white/45 [&>svg]:w-[1.6rem] [&>svg]:h-[1.6rem] [&>svg]:shrink-0">
+        {icon}
+        {children}
+      </span>
+    </label>
+  );
+}
+
+interface TvAccountScreenProps {
+  stageStyle?: CSSProperties;
+  activeTab: TabKind;
+  onTab: (tab: TabKind) => void;
+  error: string | null;
+  canSubmit: boolean;
+  onSubmit: () => void;
+  fields: ReactNode;
+}
+
+/** First-run account screen laid out for a TV: brand and steps on the left, a large remote-friendly form on the right. */
+function TvAccountScreen({ stageStyle, activeTab, onTab, error, canSubmit, onSubmit, fields }: TvAccountScreenProps) {
+  return (
+    <div id="zendit-account-modal" className="app-bg fixed inset-0 z-50 overflow-hidden">
+      <div className="relative h-full grid grid-cols-[38fr_62fr] gap-[4rem] px-[5rem] pt-[4rem] pb-[5rem] text-[#F5F5FA]" style={stageStyle}>
+        <div className="flex flex-col justify-center gap-[2.2rem] min-w-0">
+          <ZenditLogo size="xl" showText showTagline className="self-start origin-bottom-left scale-[1.36]" />
+          <div className="mt-[1.5rem]">
+            <h1 className="text-[3rem] font-extrabold tracking-tight">Hesabınızı bağlayın</h1>
+            <p className="mt-[0.4rem] text-[1.45rem] leading-normal text-white/70 max-w-[34rem]">
+              IPTV sağlayıcınızın verdiği Xtream bilgilerini ya da M3U adresini girin. Listeleriniz birkaç saniyede yüklenir.
+            </p>
+          </div>
+          <ol className="flex flex-col gap-[1rem]">
+            {['Bağlantı türünü seçin', 'Bilgileri kumandayla girin', "Bağlan'a basın"].map((text, i) => (
+              <li key={text} className="flex items-center gap-[1rem] text-[1.3rem] font-semibold text-white/85">
+                <span className="w-[2.6rem] h-[2.6rem] rounded-full bg-brand/15 text-brand flex items-center justify-center font-extrabold">
+                  {i + 1}
+                </span>
+                {text}
+              </li>
+            ))}
+          </ol>
+          <p className="text-[1.05rem] leading-normal text-white/50 max-w-[34rem]">
+            Zendit Player içerik sağlamaz; yalnızca sizin eklediğiniz listeleri oynatır.
+          </p>
+        </div>
+
+        <div className="glass self-center rounded-[2.25rem] px-[2.8rem] py-[2.6rem] min-w-0">
+          <div className="grid grid-cols-3 gap-[1.1rem] mb-[2rem]">
+            {TV_TABS.map(({ kind, label, Icon }) => (
+              <button
+                key={kind}
+                type="button"
+                onClick={() => onTab(kind)}
+                className={`tv-focus-ring flex items-center justify-center gap-[0.8rem] h-[5.2rem] rounded-[1.3rem] text-[1.45rem] font-bold ${
+                  activeTab === kind ? 'bg-brand/20 text-brand shadow-[inset_0_0_0_2px_rgba(255,91,61,0.55)]' : 'bg-white/[0.07] text-white/70'
+                }`}
+              >
+                <Icon className="w-[1.9rem] h-[1.9rem]" />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {error && (
+            <div className="mb-[1.4rem] flex items-start gap-[0.8rem] rounded-[1rem] bg-red-950/40 text-red-300 text-[1.2rem] p-[1rem]">
+              <AlertCircle className="w-[1.5rem] h-[1.5rem] shrink-0 mt-[0.1rem]" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-x-[1.4rem] gap-y-[1.3rem]">{fields}</div>
+
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={!canSubmit}
+            className="tv-focus-ring mt-[2.2rem] w-full h-[4.8rem] rounded-full flex items-center justify-center gap-[0.8rem] bg-brand text-white disabled:bg-white/[0.09] disabled:text-white/40 text-[1.5rem] font-extrabold"
+          >
+            <LogIn className="w-[1.7rem] h-[1.7rem]" />
+            Bağlan
+          </button>
+        </div>
+
+        <div className="absolute right-[5rem] bottom-[2.2rem] flex gap-[2.4rem] text-[1.15rem] font-semibold text-white/75 [&_svg]:w-[1.4rem] [&_svg]:h-[1.4rem] [&_svg]:text-white">
+        <span className="flex items-center gap-[0.6rem]">
+          <Move />
+          Gezin
+        </span>
+        <span className="flex items-center gap-[0.6rem]">
+          <CornerDownLeft />
+          OK: Seç / Yaz
+        </span>
+        <span className="flex items-center gap-[0.6rem]">
+          <Undo2 />
+          Geri: Çıkış
+        </span>
+        </div>
+      </div>
     </div>
   );
 }
