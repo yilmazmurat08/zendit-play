@@ -114,29 +114,11 @@
                 android:src="@drawable/zp_ic_pip"
                 android:contentDescription="Küçük pencere"
                 style="@style/ZpIconButton"/>
-        </LinearLayout>
-        <LinearLayout
-            android:gravity="center_vertical"
-            android:layout_gravity="center"
-            android:orientation="horizontal"
-            android:id="@+id/zp_center"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content">
             <ImageButton
-                android:id="@+id/zp_left"
-                android:src="@drawable/zp_ic_replay"
-                android:contentDescription="10 saniye geri"
-                style="@style/ZpRoundButton"/>
-            <ImageButton
-                android:id="@+id/zp_play"
-                android:src="@drawable/zp_ic_pause"
-                android:contentDescription="Oynat / duraklat"
-                style="@style/ZpPlayButton"/>
-            <ImageButton
-                android:id="@+id/zp_right"
-                android:src="@drawable/zp_ic_forward"
-                android:contentDescription="10 saniye ileri"
-                style="@style/ZpRoundButton"/>
+                android:id="@+id/zp_menu"
+                android:src="@drawable/zp_ic_menu"
+                android:contentDescription="Diğer ayarlar"
+                style="@style/ZpIconButton"/>
         </LinearLayout>
         <LinearLayout
             android:layout_gravity="bottom"
@@ -275,72 +257,112 @@
                     android:minWidth="52dp"
                     android:fontFeatureSettings="tnum"/>
             </LinearLayout>
-            <!-- Tool chips wrap to a second row when they do not fit (phones), instead of scrolling off screen. -->
-            <com.zendit.play.ZpFlowLayout
-                android:id="@+id/zp_tools"
-                android:paddingTop="4dp"
-                android:paddingBottom="4dp"
-                android:layout_width="match_parent"
+            <!-- Small transport buttons, left-aligned right under the progress bar. -->
+            <LinearLayout
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:id="@+id/zp_center"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp">
-                <TextView
-                    android:id="@+id/zp_tool_live"
-                    android:visibility="gone"
-                    android:text="Canlıya dön"
-                    android:drawableStart="@drawable/zp_ic_skip_next"
-                    style="@style/ZpChip"/>
-                <TextView
-                    android:id="@+id/zp_tool_audio"
-                    android:text="Ses"
-                    android:drawableStart="@drawable/zp_ic_audio"
-                    style="@style/ZpChip"/>
-                <TextView
-                    android:id="@+id/zp_tool_subtitles"
-                    android:text="Altyazı"
-                    android:drawableStart="@drawable/zp_ic_subtitles"
-                    style="@style/ZpChip"/>
-                <TextView
-                    android:id="@+id/zp_tool_quality"
-                    android:text="Kalite"
-                    android:drawableStart="@drawable/zp_ic_hd"
-                    style="@style/ZpChip"/>
-                <TextView
-                    android:id="@+id/zp_tool_aspect"
-                    android:text="Sığdır"
-                    android:drawableStart="@drawable/zp_ic_aspect"
-                    style="@style/ZpChip"/>
-                <TextView
-                    android:id="@+id/zp_tool_speed"
-                    android:text="Hız 1x"
-                    android:drawableStart="@drawable/zp_ic_speed"
-                    style="@style/ZpChip"/>
-                <TextView
-                    android:id="@+id/zp_tool_episodes"
-                    android:text="Bölümler"
-                    android:drawableStart="@drawable/zp_ic_list"
-                    style="@style/ZpChip"/>
-                <TextView
-                    android:id="@+id/zp_tool_restart"
-                    android:text="Baştan başlat"
-                    android:drawableStart="@drawable/zp_ic_replay"
-                    style="@style/ZpChip"/>
-                <TextView
-                    android:id="@+id/zp_tool_sleep"
-                    android:text="Uyku"
-                    android:drawableStart="@drawable/zp_ic_moon"
-                    style="@style/ZpChip"/>
-                <TextView
-                    android:id="@+id/zp_tool_lock"
-                    android:text="Kilitle"
-                    android:drawableStart="@drawable/zp_ic_lock"
-                    style="@style/ZpChip"/>
-                <TextView
-                    android:id="@+id/zp_tool_external"
-                    android:text="Harici oynatıcı"
-                    android:drawableStart="@drawable/zp_ic_external"
-                    style="@style/ZpChip"/>
-            </com.zendit.play.ZpFlowLayout>
+                android:layout_marginTop="4dp">
+                <ImageButton
+                    android:id="@+id/zp_left"
+                    android:src="@drawable/zp_ic_replay"
+                    android:contentDescription="10 saniye geri"
+                    android:layout_marginStart="0dp"
+                    style="@style/ZpIconButton"/>
+                <ImageButton
+                    android:id="@+id/zp_play"
+                    android:src="@drawable/zp_ic_pause"
+                    android:contentDescription="Oynat / duraklat"
+                    style="@style/ZpSmallPlayButton"/>
+                <ImageButton
+                    android:id="@+id/zp_right"
+                    android:src="@drawable/zp_ic_forward"
+                    android:contentDescription="10 saniye ileri"
+                    style="@style/ZpIconButton"/>
+            </LinearLayout>
         </LinearLayout>
+        <!-- Tool panel, opened from the menu button (top right). Chips wrap into rows; scrolls on short screens. -->
+        <ScrollView
+            android:id="@+id/zp_tools_panel"
+            android:visibility="gone"
+            android:scrollbars="none"
+            android:background="@drawable/zp_panel_bg"
+            android:layout_gravity="top|end"
+            android:layout_width="440dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="76dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="16dp"
+            android:paddingStart="14dp"
+            android:paddingTop="12dp"
+            android:paddingEnd="4dp"
+            android:paddingBottom="12dp">
+                <com.zendit.play.ZpFlowLayout
+                    android:id="@+id/zp_tools"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView
+                        android:id="@+id/zp_tool_live"
+                        android:visibility="gone"
+                        android:text="Canlıya dön"
+                        android:drawableStart="@drawable/zp_ic_skip_next"
+                        style="@style/ZpChip"/>
+                    <TextView
+                        android:id="@+id/zp_tool_audio"
+                        android:text="Ses"
+                        android:drawableStart="@drawable/zp_ic_audio"
+                        style="@style/ZpChip"/>
+                    <TextView
+                        android:id="@+id/zp_tool_subtitles"
+                        android:text="Altyazı"
+                        android:drawableStart="@drawable/zp_ic_subtitles"
+                        style="@style/ZpChip"/>
+                    <TextView
+                        android:id="@+id/zp_tool_quality"
+                        android:text="Kalite"
+                        android:drawableStart="@drawable/zp_ic_hd"
+                        style="@style/ZpChip"/>
+                    <TextView
+                        android:id="@+id/zp_tool_aspect"
+                        android:text="Sığdır"
+                        android:drawableStart="@drawable/zp_ic_aspect"
+                        style="@style/ZpChip"/>
+                    <TextView
+                        android:id="@+id/zp_tool_speed"
+                        android:text="Hız 1x"
+                        android:drawableStart="@drawable/zp_ic_speed"
+                        style="@style/ZpChip"/>
+                    <TextView
+                        android:id="@+id/zp_tool_episodes"
+                        android:text="Bölümler"
+                        android:drawableStart="@drawable/zp_ic_list"
+                        style="@style/ZpChip"/>
+                    <TextView
+                        android:id="@+id/zp_tool_restart"
+                        android:text="Baştan başlat"
+                        android:drawableStart="@drawable/zp_ic_replay"
+                        style="@style/ZpChip"/>
+                    <TextView
+                        android:id="@+id/zp_tool_sleep"
+                        android:text="Uyku"
+                        android:drawableStart="@drawable/zp_ic_moon"
+                        style="@style/ZpChip"/>
+                    <TextView
+                        android:id="@+id/zp_tool_lock"
+                        android:text="Kilitle"
+                        android:drawableStart="@drawable/zp_ic_lock"
+                        style="@style/ZpChip"/>
+                    <TextView
+                        android:id="@+id/zp_tool_external"
+                        android:text="Harici oynatıcı"
+                        android:drawableStart="@drawable/zp_ic_external"
+                        style="@style/ZpChip"/>
+                </com.zendit.play.ZpFlowLayout>
+        </ScrollView>
     </FrameLayout>
     <LinearLayout
         android:gravity="center_horizontal"

@@ -22,6 +22,16 @@
         <item name="android:layout_marginEnd">36dp</item>
     </style>
 
+    <!-- Small brand-colored play/pause in the bottom transport row. -->
+    <style name="ZpSmallPlayButton" parent="ZpIconButton">
+        <item name="android:background">@drawable/zp_play_button_bg</item>
+        <item name="android:padding">11dp</item>
+        <item name="android:layout_width">48dp</item>
+        <item name="android:layout_height">48dp</item>
+        <item name="android:layout_marginStart">10dp</item>
+        <item name="android:layout_marginEnd">6dp</item>
+    </style>
+
     <style name="ZpRoundButton" parent="ZpIconButton">
         <item name="android:background">@drawable/zp_round_button_bg</item>
         <item name="android:padding">16dp</item>

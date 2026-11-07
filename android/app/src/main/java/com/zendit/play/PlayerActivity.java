@@ -19,6 +19,7 @@ import android.util.Rational;
 import android.view.KeyEvent;
 import android.view.SurfaceView;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
@@ -101,6 +102,9 @@ public class PlayerActivity extends AppCompatActivity implements PlayerGestures.
     private long catchupStop;
     private TextView clockView;
     private View controls;
+    /** Tool chips panel (audio, subtitles, aspect...) opened from the menu button. */
+    private View toolsPanel;
+    private ImageButton menuButton;
     private boolean controlsVisible;
     private TextView durationView;
     private EpgStore epg;
@@ -847,6 +851,8 @@ public class PlayerActivity extends AppCompatActivity implements PlayerGestures.
         this.numberView = (TextView) findViewById(R.id.zp_number);
         this.infoView = (TextView) findViewById(R.id.zp_info);
         this.controls = findViewById(R.id.zp_controls);
+        this.toolsPanel = findViewById(R.id.zp_tools_panel);
+        this.menuButton = (ImageButton) findViewById(R.id.zp_menu);
         this.topBar = findViewById(R.id.zp_top_bar);
         this.bottomBar = findViewById(R.id.zp_bottom_bar);
         this.titleView = (TextView) findViewById(R.id.zp_title);
@@ -919,15 +925,7 @@ public class PlayerActivity extends AppCompatActivity implements PlayerGestures.
                 return PlayerActivity.$r8$lambda$QZszoEx56U7_GhZJ4Q4HxQog2pE(PlayerActivity.this, view, windowInsetsCompat);
             }
         });
-        final View center = findViewById(R.id.zp_center);
-        View.OnLayoutChangeListener recenter = new View.OnLayoutChangeListener() { // from class: com.zendit.play.PlayerActivity$$ExternalSyntheticLambda45
-            @Override // android.view.View.OnLayoutChangeListener
-            public final void onLayoutChange(View view, int i2, int i3, int i4, int i5, int i6, int i7, int i8, int i9) {
-                PlayerActivity.$r8$lambda$gliQF_LlhYUmZTqHs9NrQlPmLT8(PlayerActivity.this, center, view, i2, i3, i4, i5, i6, i7, i8, i9);
-            }
-        };
-        this.topBar.addOnLayoutChangeListener(recenter);
-        this.bottomBar.addOnLayoutChangeListener(recenter);
+        // Transport buttons now sit in the bottom bar (under the progress bar): no vertical centring needed.
     }
 
     private /* synthetic */ WindowInsetsCompat lambda$setupWindow$4(View v, WindowInsetsCompat insets) {
@@ -958,6 +956,12 @@ public class PlayerActivity extends AppCompatActivity implements PlayerGestures.
 
     private void setupControls() {
         findViewById(R.id.zp_touch).setOnTouchListener(new PlayerGestures(this, this));
+        this.menuButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                toggleToolsPanel();
+            }
+        });
         findViewById(R.id.zp_back).setOnClickListener(new View.OnClickListener() { // from class: com.zendit.play.PlayerActivity$$ExternalSyntheticLambda5
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
@@ -1544,6 +1548,7 @@ public class PlayerActivity extends AppCompatActivity implements PlayerGestures.
         }
         this.controlsVisible = false;
         this.handler.removeCallbacks(this.hideControlsRunnable);
+        this.toolsPanel.setVisibility(View.GONE);
         this.controls.animate().cancel();
         this.controls.animate().alpha(0.0f).setDuration(200L).withEndAction(new Runnable() { // from class: com.zendit.play.PlayerActivity$$ExternalSyntheticLambda22
             @Override // java.lang.Runnable
@@ -1562,14 +1567,41 @@ public class PlayerActivity extends AppCompatActivity implements PlayerGestures.
 
     private void hideControlsNow() {
         this.controlsVisible = false;
+        this.toolsPanel.setVisibility(View.GONE);
         this.handler.removeCallbacks(this.hideControlsRunnable);
         this.controls.animate().cancel();
         this.controls.setVisibility(8);
     }
 
+    /** Menu button: shows / hides the tool chips. Controls stay up while the panel is open. */
+    private void toggleToolsPanel() {
+        if (this.toolsPanel.getVisibility() == View.VISIBLE) {
+            closeToolsPanel();
+            return;
+        }
+        this.toolsPanel.setVisibility(View.VISIBLE);
+        this.toolsPanel.scrollTo(0, 0);
+        this.handler.removeCallbacks(this.hideControlsRunnable);
+        ViewGroup tools = (ViewGroup) findViewById(R.id.zp_tools);
+        for (int i = 0; i < tools.getChildCount(); i++) {
+            View chip = tools.getChildAt(i);
+            if (chip.getVisibility() == View.VISIBLE) {
+                chip.requestFocus();
+                break;
+            }
+        }
+    }
+
+    private void closeToolsPanel() {
+        this.toolsPanel.setVisibility(View.GONE);
+        this.menuButton.requestFocus();
+        scheduleHide();
+    }
+
     private void scheduleHide() {
         this.handler.removeCallbacks(this.hideControlsRunnable);
-        if (this.player != null && this.player.getPlayWhenReady() && this.sideMode == 0 && this.errorPanel.getVisibility() != 0) {
+        if (this.player != null && this.player.getPlayWhenReady() && this.sideMode == 0 && this.errorPanel.getVisibility() != 0
+                && this.toolsPanel.getVisibility() != View.VISIBLE) {
             this.handler.postDelayed(this.hideControlsRunnable, 4500L);
         }
     }
@@ -2745,6 +2777,10 @@ public class PlayerActivity extends AppCompatActivity implements PlayerGestures.
             closeSide();
             return;
         }
+        if (this.toolsPanel.getVisibility() == View.VISIBLE) {
+            closeToolsPanel();
+            return;
+        }
         if (this.nextCard.getVisibility() == 0) {
             cancelNextCountdown();
             showControls(true);
@@ -2866,7 +2902,8 @@ public class PlayerActivity extends AppCompatActivity implements PlayerGestures.
         }
         int max = Math.max(1, this.audioManager.getStreamMaxVolume(3));
         if (this.volume < 0.0f) {
-            this.volume = this.audioManager.getStreamVolume(3) / max;
+            // Float division (an int division always gave 0, so every swipe started from silence).
+            this.volume = ((float) this.audioManager.getStreamVolume(3)) / max;
         }
         this.volume = Math.max(0.0f, Math.min(1.0f, this.volume + delta));
         try {
