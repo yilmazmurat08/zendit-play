@@ -95,9 +95,9 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
           type="button"
           onClick={onClose}
           title="Kapat"
-          className="tv-focus absolute top-3 right-3 tv:top-[1.75rem] tv:right-[1.75rem] z-10 w-10 h-10 tv:w-[4.25rem] tv:h-[4.25rem] rounded-full bg-lilac flex items-center justify-center"
+          className="tv-focus absolute top-3 right-3 z-10 w-10 h-10 rounded-full bg-lilac flex items-center justify-center tv:hidden"
         >
-          <X className="w-5 h-5 tv:w-[2rem] tv:h-[2rem] stroke-[2.5]" />
+          <X className="w-5 h-5 stroke-[2.5]" />
         </button>
 
         <div className="flex flex-col sm:flex-row gap-5 tv:gap-[2.25rem]">
@@ -109,7 +109,7 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
             <PosterImage src={media.poster} />
           </div>
 
-          <div className="flex-1 min-w-0 tv:pr-[5rem]">
+          <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-x-4 tv:gap-x-[1.4rem] gap-y-1 text-xs tv:text-[1.05rem] font-semibold">
               {media.rating && media.rating !== 'N/A' && media.rating !== '0' && (
                 <span className="flex items-center gap-1.5">
@@ -144,6 +144,17 @@ export const MediaDetailModal: React.FC<MediaDetailModalProps> = ({
             </dl>
 
             <div className="mt-4 tv:mt-[1.5rem] flex flex-wrap gap-2.5 tv:gap-[0.9rem]">
+              {/* TV: close sits right before "Hemen İzle" (one Left press from the initial focus) instead of the far corner. */}
+              <button
+                id="btn-detail-close-tv"
+                type="button"
+                onClick={onClose}
+                title="Kapat"
+                aria-label="Kapat"
+                className="tv-focus hidden tv:flex shrink-0 items-center justify-center w-[3.5rem] h-[3.5rem] rounded-full bg-lilac text-white border-2 border-transparent"
+              >
+                <X className="w-[1.6rem] h-[1.6rem] stroke-[2.5]" />
+              </button>
               <button
                 id="btn-detail-play"
                 ref={playButtonRef}
