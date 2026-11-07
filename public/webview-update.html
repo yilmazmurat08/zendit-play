@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zendit Player</title>
+<!-- Shown by Capacitor instead of the app when Android System WebView is older than
+     android.minWebViewVersion (capacitor.config.ts). Plain HTML/CSS/ES5 on purpose:
+     it has to render on very old WebViews. -->
+<style>
+  html, body { margin: 0; height: 100%; background: #1B1938; color: #F5F5FA;
+    font-family: sans-serif; }
+  .wrap { box-sizing: border-box; min-height: 100%; padding: 5vh 6vw;
+    display: -webkit-box; display: -webkit-flex; display: flex;
+    -webkit-box-orient: vertical; -webkit-flex-direction: column; flex-direction: column;
+    -webkit-box-pack: center; -webkit-justify-content: center; justify-content: center; }
+  .card { max-width: 46rem; margin: 0 auto; background: #221F45; border-radius: 1.5rem;
+    padding: 2rem 2.25rem; }
+  h1 { margin: 0 0 1rem; font-size: 1.6rem; color: #FF5B3D; }
+  p, li { font-size: 1.1rem; line-height: 1.55; margin: 0 0 .75rem; }
+  ol { margin: 0 0 1rem; padding-left: 1.4rem; }
+  b { color: #FFFFFF; }
+  .ver { margin-top: 1.25rem; font-size: .95rem; color: #A9A6C9; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>Android System WebView güncellenmeli</h1>
+    <p>Zendit Player, cihazdaki <b>Android System WebView</b> bileşeniyle çalışır. Bu cihazdaki sürüm çok eski olduğu için uygulama açılamıyor.</p>
+    <ol>
+      <li><b>Google Play Store</b> uygulamasını açın.</li>
+      <li><b>Android System WebView</b> uygulamasını aratın.</li>
+      <li><b>Güncelle</b> düğmesine basın.</li>
+      <li>Güncelleme bitince Zendit Player'ı kapatıp yeniden açın.</li>
+    </ol>
+    <p>Android TV'de Play Store'da bulamazsanız: Ayarlar &gt; Uygulamalar &gt; Android System WebView bölümünden güncelleme durumunu kontrol edin.</p>
+    <p class="ver" id="ver"></p>
+  </div>
+</div>
+<script>
+  (function () {
+    var m = /Chrome\/(\d+[\d.]*)/.exec(navigator.userAgent);
+    if (m) document.getElementById('ver').innerHTML = 'Bu cihazdaki WebView sürümü: ' + m[1] + ' (en az 88 gerekir)';
+  })();
+</script>
+</body>
+</html>

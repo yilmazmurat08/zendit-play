@@ -11,6 +11,13 @@ const config: CapacitorConfig = {
     androidScheme: 'http',
     // Adds android:usesCleartextTraffic="true" - required for http:// IPTV servers.
     cleartext: true,
+    // Shown instead of the app when the WebView is older than android.minWebViewVersion.
+    errorPath: 'webview-update.html',
+  },
+  android: {
+    // Oldest Android System WebView (Chrome) the web code runs on: the JS bundle targets Chrome 87
+    // and the CSS needs :where() (Chrome 88). Older WebViews get the "please update" page above.
+    minWebViewVersion: 88,
   },
   plugins: {
     // fetch()/XMLHttpRequest go through Android's native HTTP stack: no CORS limits for Xtream / M3U requests.
