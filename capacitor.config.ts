@@ -20,6 +20,9 @@ const config: CapacitorConfig = {
     // Light status/navigation bar icons on the dark UI. Content stays clear of the bars and the camera cutout.
     SystemBars: {
       style: 'DARK',
+      // Fullscreen app: bars hidden, MainActivity handles the insets (same as 1.5.4).
+      hidden: true,
+      insetsHandling: 'disable',
     },
   },
 };

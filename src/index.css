@@ -149,6 +149,14 @@
   box-shadow: inset 0 0 0 0.15rem #FF5B3D;
 }
 
+/* TV remote on the account screen: the selected field / button must be visible, otherwise the
+   D-pad seems dead once focus enters a text field. Landscape (TV) layout only: phone look unchanged. */
+.tv-layout #zendit-account-modal input:focus,
+.tv-layout #zendit-account-modal button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 0.15rem #FF5B3D;
+}
+
 /* Logo wordmark: gold "dit" with the "player" tagline under it. */
 .zendit-word {
   color: transparent;
