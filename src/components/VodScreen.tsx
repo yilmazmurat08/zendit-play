@@ -3,6 +3,7 @@ import { Clapperboard, Film, Heart, Star } from 'lucide-react';
 import { Episode, Movie, Series, XtreamAccount } from '../types';
 import { useVirtualList } from '../lib/useVirtualList';
 import { CATEGORY_ADDED, CATEGORY_FAVORITES, CATEGORY_RECENT, DeviceInfo, useIsTv } from '../lib/tv';
+import { foldQuery, matchesQuery } from '../lib/search';
 import { useParental } from '../lib/parental';
 import { CategoryItem, CategoryPanel, PosterImage } from './TvUi';
 import { MediaDetailModal } from './MediaDetailModal';
@@ -106,16 +107,8 @@ export function VodScreen({
         (i) => i.category?.trim().toLowerCase() === cat || i.genres?.some((g) => g.trim().toLowerCase() === cat)
       );
     }
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (i) =>
-          i.title.toLowerCase().includes(q) ||
-          i.genres.some((g) => g.toLowerCase().includes(q)) ||
-          (i.category && i.category.toLowerCase().includes(q)) ||
-          (i.director && i.director.toLowerCase().includes(q))
-      );
-    }
+    const q = foldQuery(searchQuery);
+    if (q) list = list.filter((i) => matchesQuery(q, i.title, i.category, i.director, ...(i.genres || [])));
     if (sortBy === 'default') return list;
     return [...list].sort((a, b) => {
       if (sortBy === 'rating') {

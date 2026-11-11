@@ -3,6 +3,7 @@ import { AppSettings, Channel, XtreamAccount } from '../types';
 import { CalendarClock, CalendarDays, Heart, History, Loader2, Lock, RotateCcw, Tv } from 'lucide-react';
 import { useVirtualList } from '../lib/useVirtualList';
 import { CATEGORY_ADDED, CATEGORY_FAVORITES, CATEGORY_RECENT, DeviceInfo, useIsTv } from '../lib/tv';
+import { foldQuery, matchesQuery } from '../lib/search';
 import { useParental } from '../lib/parental';
 import { archiveDays, canCatchup } from '../lib/catchup';
 import {
@@ -144,12 +145,8 @@ export function LiveTvScreen({
     } else {
       list = channels.filter((ch) => ch.category?.trim() === selectedCategory);
     }
-    const q = searchQuery.trim().toLowerCase();
-    if (q) {
-      list = list.filter(
-        (ch) => ch.name.toLowerCase().includes(q) || ch.currentShow.toLowerCase().includes(q) || ch.category.toLowerCase().includes(q)
-      );
-    }
+    const q = foldQuery(searchQuery);
+    if (q) list = list.filter((ch) => matchesQuery(q, ch.name, ch.currentShow, ch.category));
     if (sortMode === 'name') list = [...list].sort((a, b) => a.name.localeCompare(b.name, 'tr'));
     return list;
   }, [channels, recentIds, selectedCategory, searchQuery, sortMode]);

@@ -6,6 +6,7 @@ import { useParental } from '../lib/parental';
 import { formatClock, useEpgStatus, useGuideProgrammes, type EpgProgramme } from '../lib/epg';
 import { MAX_ARCHIVE_DAYS, archiveDays, canCatchup } from '../lib/catchup';
 import { CATEGORY_FAVORITES, useIsTv } from '../lib/tv';
+import { foldQuery, matchesQuery } from '../lib/search';
 import { useVirtualList } from '../lib/useVirtualList';
 
 const ALL_CHANNELS = 'Tüm Kanallar',
@@ -34,8 +35,6 @@ interface GuideScreenProps {
   onPlayCatchup: (channel: Channel, programme: EpgProgramme) => void;
   compact?: boolean;
 }
-
-type CellState = 'live' | 'archive' | 'past' | 'future';
 
 /** TV guide grid: channels as rows, time as columns, with catch-up for archived programmes. */
 export function GuideScreen({
@@ -113,8 +112,8 @@ export function GuideScreen({
             : (Me = channels.filter((ut) => {
                 return ut.category?.trim() === category;
               }));
-      const Ze = searchQuery.trim().toLocaleLowerCase('tr-TR');
-      return (Ze && (Me = Me.filter((ut) => ut.name.toLocaleLowerCase('tr-TR').includes(Ze))), Me);
+      const Ze = foldQuery(searchQuery);
+      return (Ze && (Me = Me.filter((ut) => matchesQuery(Ze, ut.name))), Me);
     }, [channels, category, searchQuery]),
     { containerRef, totalHeight, offsetY, startIndex, endIndex } = useVirtualList(filtered.length, dims.rowH, 4),
     [scrollX, setScrollX] = useState(0);

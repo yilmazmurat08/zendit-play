@@ -20,7 +20,7 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { AppSettings, Episode, Movie, Series, Channel } from '../types';
-import { detectStreamKind, proxiedStreamUrl } from '../lib/proxy';
+import { detectStreamKind, proxiedStreamUrl } from '../lib/stream';
 import { buildAndroidIntentUrl } from '../lib/externalPlayer';
 
 interface VideoPlayerModalProps {

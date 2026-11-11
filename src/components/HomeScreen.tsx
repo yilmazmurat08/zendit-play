@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { ChevronRight, ListVideo } from 'lucide-react';
 import { Channel, Movie, Series, TabType, WatchHistoryEntry, XtreamAccount } from '../types';
 import { CATEGORY_FAVORITES, DeviceInfo, MENU_COLORS } from '../lib/tv';
+import { foldQuery, matchesQuery } from '../lib/search';
 import { useParental } from '../lib/parental';
 import { CONTINUE_LABELS, ContinueKind, useContinueLists } from '../lib/continueWatching';
 import { Footer, HeartIcon, LiveIcon, MovieIcon, PosterImage, SeriesIcon } from './TvUi';
@@ -138,12 +139,24 @@ export function HomeScreen({
     onNavigate(tab, CATEGORY_FAVORITES);
   };
 
-  const q = searchQuery.trim().toLowerCase();
+  const q = foldQuery(searchQuery);
   const results = useMemo(() => {
     if (!q) return null;
+    // Stop as soon as enough results are found instead of scanning (and copying) the whole catalogue.
+    const take = <T,>(list: T[], limit: number, text: (item: T) => string): T[] => {
+      const found: T[] = [];
+      for (const item of list) {
+        if (matchesQuery(q, text(item))) {
+          found.push(item);
+          if (found.length >= limit) break;
+        }
+      }
+      return found;
+    };
+    const foundMovies = take<Movie | Series>(movies, 36, (m) => m.title);
     return {
-      channels: channels.filter((c) => c.name.toLowerCase().includes(q)).slice(0, 24),
-      vod: [...movies.filter((m) => m.title.toLowerCase().includes(q)), ...series.filter((s) => s.title.toLowerCase().includes(q))].slice(0, 36),
+      channels: take(channels, 24, (c) => c.name),
+      vod: [...foundMovies, ...take<Movie | Series>(series, 36 - foundMovies.length, (s) => s.title)],
     };
   }, [q, channels, movies, series]);
 

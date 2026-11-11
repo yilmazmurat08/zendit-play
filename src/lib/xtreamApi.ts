@@ -1,6 +1,6 @@
 import type { Channel, Movie, Series, Season, Episode } from '../types';
 import type { EpgProgramme } from './epg';
-import { proxiedApiUrl } from './proxy';
+import { HttpError, httpGetJson } from './http';
 
 export interface XtreamCredentials {
   serverUrl: string;
@@ -56,28 +56,24 @@ function apiUrl(creds: XtreamCredentials, action?: string, extraParams?: Record<
   return `${base}/player_api.php?${params.toString()}`;
 }
 
+/** Category lists and detail calls are small; the full stream lists can be tens of MB on slow panels. */
+const QUICK_TIMEOUT_MS = 30000;
+const LIST_TIMEOUT_MS = 120000;
+
 async function xtreamFetch<T>(
   creds: XtreamCredentials,
   action?: string,
-  extraParams?: Record<string, string | number>
+  extraParams?: Record<string, string | number>,
+  timeoutMs: number = QUICK_TIMEOUT_MS
 ): Promise<T> {
-  const target = apiUrl(creds, action, extraParams);
-  let res: Response;
   try {
-    res = await fetch(proxiedApiUrl(target), { signal: AbortSignal.timeout(20000) });
+    return await httpGetJson<T>(apiUrl(creds, action, extraParams), { timeoutMs });
   } catch (err) {
-    if (err instanceof DOMException && err.name === 'TimeoutError') {
-      throw new XtreamApiError('Sunucu zaman aşımına uğradı. Adresi ve bağlantınızı kontrol edin.');
+    if (err instanceof HttpError) {
+      if (err.kind === 'timeout') throw new XtreamApiError('Sunucu zaman aşımına uğradı. Adresi ve bağlantınızı kontrol edin.');
+      if (err.kind === 'status') throw new XtreamApiError(`Sunucu ${err.status} koduyla yanıt verdi.`, err.status);
+      throw new XtreamApiError('Sunucuya bağlanılamadı. Sunucu adresini ve internet bağlantınızı kontrol edin.');
     }
-    throw new XtreamApiError('Sunucuya bağlanılamadı. Sunucu adresini ve internet bağlantınızı kontrol edin.');
-  }
-  if (!res.ok) {
-    throw new XtreamApiError(`Sunucu ${res.status} koduyla yanıt verdi.`, res.status);
-  }
-  const text = await res.text();
-  try {
-    return JSON.parse(text) as T;
-  } catch {
     throw new XtreamApiError('Sunucudan geçerli bir yanıt alınamadı. Bu adres bir Xtream Codes paneli olmayabilir.');
   }
 }
@@ -108,17 +104,23 @@ export async function xtreamLogin(creds: XtreamCredentials): Promise<XtreamAccou
   };
 }
 
+/** Some panels answer with an object keyed by index instead of an array. */
+function toList<T>(raw: unknown): T[] {
+  if (Array.isArray(raw)) return raw as T[];
+  if (raw && typeof raw === 'object') return Object.values(raw as Record<string, T>).filter((v) => v && typeof v === 'object');
+  return [];
+}
+
 interface RawCategory {
   category_id: string;
   category_name: string;
 }
 
 async function fetchCategoryMap(creds: XtreamCredentials, action: string): Promise<Map<string, string>> {
-  const raw = await xtreamFetch<RawCategory[]>(creds, action);
   const map = new Map<string, string>();
-  if (Array.isArray(raw)) {
-    for (const c of raw) map.set(String(c.category_id), c.category_name || 'Kategori');
-  }
+  // Category names are a nicety: if this call fails the list still loads (items land in "Diğer").
+  const raw = await xtreamFetch<RawCategory[]>(creds, action).catch(() => null);
+  for (const c of toList<RawCategory>(raw)) map.set(String(c.category_id), c.category_name || 'Kategori');
   return map;
 }
 
@@ -178,11 +180,12 @@ export function buildLiveStreamUrl(creds: XtreamCredentials, streamId: number, e
 }
 
 async function fetchChannels(creds: XtreamCredentials, liveFormat: '.ts' | '.m3u8' | '.mpd'): Promise<Channel[]> {
-  const categories = await fetchCategoryMap(creds, 'get_live_categories');
-  const raw = await xtreamFetch<RawLiveStream[]>(creds, 'get_live_streams');
+  const [categories, raw] = await Promise.all([
+    fetchCategoryMap(creds, 'get_live_categories'),
+    xtreamFetch<RawLiveStream[]>(creds, 'get_live_streams', undefined, LIST_TIMEOUT_MS),
+  ]);
   const ext: 'm3u8' | 'ts' = liveFormat === '.ts' ? 'ts' : 'm3u8';
-  if (!Array.isArray(raw)) return [];
-  return raw.map((r) => ({
+  return toList<RawLiveStream>(raw).map((r) => ({
     id: `live_${r.stream_id}`,
     name: r.name || `Kanal ${r.num}`,
     streamUrl: buildLiveStreamUrl(creds, r.stream_id, ext),
@@ -222,10 +225,11 @@ export function buildVodStreamUrl(creds: XtreamCredentials, streamId: number, ex
 }
 
 async function fetchMovies(creds: XtreamCredentials): Promise<Movie[]> {
-  const categories = await fetchCategoryMap(creds, 'get_vod_categories');
-  const raw = await xtreamFetch<RawVodStream[]>(creds, 'get_vod_streams');
-  if (!Array.isArray(raw)) return [];
-  return raw.map((r) => {
+  const [categories, raw] = await Promise.all([
+    fetchCategoryMap(creds, 'get_vod_categories'),
+    xtreamFetch<RawVodStream[]>(creds, 'get_vod_streams', undefined, LIST_TIMEOUT_MS),
+  ]);
+  return toList<RawVodStream>(raw).map((r) => {
     const ext = r.container_extension || 'mp4';
     return {
       id: `vod_${r.stream_id}`,
@@ -293,10 +297,11 @@ export function buildSeriesEpisodeUrl(creds: XtreamCredentials, episodeId: numbe
 }
 
 async function fetchSeriesList(creds: XtreamCredentials): Promise<Series[]> {
-  const categories = await fetchCategoryMap(creds, 'get_series_categories');
-  const raw = await xtreamFetch<RawSeries[]>(creds, 'get_series');
-  if (!Array.isArray(raw)) return [];
-  return raw.map((r) => ({
+  const [categories, raw] = await Promise.all([
+    fetchCategoryMap(creds, 'get_series_categories'),
+    xtreamFetch<RawSeries[]>(creds, 'get_series', undefined, LIST_TIMEOUT_MS),
+  ]);
+  return toList<RawSeries>(raw).map((r) => ({
     id: `series_${r.series_id}`,
     title: r.name || 'Dizi',
     year: extractYear(r.releaseDate),
@@ -465,6 +470,21 @@ export async function fetchShortEpg(creds: XtreamCredentials, streamId: number):
   return nowAndNext(await fetchShortEpgList(creds, streamId));
 }
 
+/**
+ * Runs one list download; if it fails for a reason a retry can fix (timeout, dropped connection,
+ * a 5xx / 429 from a panel that throttles parallel calls) it is tried once more on its own.
+ */
+async function withRetry<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    const status = err instanceof XtreamApiError ? err.status : undefined;
+    if (status !== undefined && status < 500 && status !== 429 && status !== 408) throw err;
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    return run();
+  }
+}
+
 export async function loadXtreamAccount(
   creds: XtreamCredentials,
   liveFormat: '.ts' | '.m3u8' | '.mpd' = '.m3u8',
@@ -473,15 +493,21 @@ export async function loadXtreamAccount(
   onProgress?.({ stage: 'auth', channelsLoaded: 0, moviesLoaded: 0, seriesLoaded: 0 });
   const meta = await xtreamLogin(creds);
 
+  // The three lists download at the same time (the total is the slowest one, not the sum).
+  // Progress is still reported in the familiar order: channels, movies, series.
   onProgress?.({ stage: 'live', channelsLoaded: 0, moviesLoaded: 0, seriesLoaded: 0 });
-  const channels = await fetchChannels(creds, liveFormat);
+  const channelsJob = withRetry(() => fetchChannels(creds, liveFormat));
+  const moviesJob = withRetry(() => fetchMovies(creds));
+  const seriesJob = withRetry(() => fetchSeriesList(creds));
+  // Failures are handled where each job is awaited below; this only silences "unhandled rejection".
+  moviesJob.catch(() => {});
+  seriesJob.catch(() => {});
 
+  const channels = await channelsJob;
   onProgress?.({ stage: 'movies', channelsLoaded: channels.length, moviesLoaded: 0, seriesLoaded: 0 });
-  const movies = await fetchMovies(creds);
-
+  const movies = await moviesJob;
   onProgress?.({ stage: 'series', channelsLoaded: channels.length, moviesLoaded: movies.length, seriesLoaded: 0 });
-  const series = await fetchSeriesList(creds);
-
+  const series = await seriesJob;
   onProgress?.({ stage: 'done', channelsLoaded: channels.length, moviesLoaded: movies.length, seriesLoaded: series.length });
 
   return { channels, movies, series, meta };

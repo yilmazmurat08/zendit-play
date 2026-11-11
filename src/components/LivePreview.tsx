@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import Hls from 'hls.js';
-// @ts-ignore
-import mpegts from 'mpegts.js';
 import { AlertCircle, Loader2, Maximize2, Tv } from 'lucide-react';
 import { Channel } from '../types';
-import { detectStreamKind, proxiedStreamUrl } from '../lib/proxy';
+import { detectStreamKind, proxiedStreamUrl } from '../lib/stream';
 import { isNativeApp, NativePlayer, toNativeRect } from '../lib/nativePlayer';
 
 interface LivePreviewProps {
@@ -80,8 +77,9 @@ export function LivePreview({ channel, active, onOpenFullscreen }: LivePreviewPr
     const raw = channel.streamUrl;
     const url = proxiedStreamUrl(raw);
     const kind = detectStreamKind(raw, channel);
-    let hls: Hls | null = null;
+    let hls: any = null;
     let tsPlayer: any = null;
+    let cancelled = false;
 
     setState('loading');
     video.muted = false;
@@ -98,26 +96,42 @@ export function LivePreview({ channel, active, onOpenFullscreen }: LivePreviewPr
       });
     };
 
-    if (kind === 'hls' && Hls.isSupported()) {
-      hls = new Hls({ enableWorker: true, lowLatencyMode: true });
-      hls.loadSource(url);
-      hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, start);
-      hls.on(Hls.Events.ERROR, (_event, data) => {
-        if (data.fatal) setState('error');
-      });
-    } else if (kind === 'mpegts' && mpegts.isSupported()) {
-      tsPlayer = mpegts.createPlayer({ type: 'mpegts', isLive: true, url }, { enableWorker: true, liveBufferLatencyChasing: true });
-      tsPlayer.attachMediaElement(video);
-      tsPlayer.on(mpegts.Events.ERROR, () => setState('error'));
-      tsPlayer.load();
-      start();
-    } else {
+    // The playback engines are loaded on first use: the Android app plays through the native
+    // player and never needs them, so they stay out of the start-up bundle.
+    const begin = async () => {
+      if (kind === 'hls') {
+        const { default: Hls } = await import('hls.js');
+        if (cancelled) return;
+        if (Hls.isSupported()) {
+          hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+          hls.loadSource(url);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.MANIFEST_PARSED, start);
+          hls.on(Hls.Events.ERROR, (_event: unknown, data: { fatal?: boolean }) => {
+            if (data.fatal) setState('error');
+          });
+          return;
+        }
+      } else if (kind === 'mpegts') {
+        // @ts-ignore - mpegts.js ships no usable types
+        const { default: mpegts } = await import('mpegts.js');
+        if (cancelled) return;
+        if (mpegts.isSupported()) {
+          tsPlayer = mpegts.createPlayer({ type: 'mpegts', isLive: true, url }, { enableWorker: true, liveBufferLatencyChasing: true });
+          tsPlayer.attachMediaElement(video);
+          tsPlayer.on(mpegts.Events.ERROR, () => setState('error'));
+          tsPlayer.load();
+          start();
+          return;
+        }
+      }
       video.src = url;
       start();
-    }
+    };
+    begin().catch(() => !cancelled && setState('error'));
 
     return () => {
+      cancelled = true;
       video.removeEventListener('playing', onPlaying);
       video.removeEventListener('error', onError);
       hls?.destroy();

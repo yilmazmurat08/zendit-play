@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { App as CapApp } from '@capacitor/app';
 import type {
   AppSettings,
@@ -21,7 +21,6 @@ import { VodScreen } from './components/VodScreen';
 import { AnalyticsScreen } from './components/AnalyticsScreen';
 import { SettingsScreen } from './components/SettingsScreen';
 import { LegalScreen } from './components/LegalScreen';
-import { VideoPlayerModal } from './components/VideoPlayerModal';
 import { AccountLoginModal } from './components/AccountLoginModal';
 import { TrailerPlayer } from './components/TrailerPlayer';
 import { ParentalCategoryEditor, PinDialog, type PinPromptOptions } from './components/ParentalControl';
@@ -54,6 +53,9 @@ import { trailerInfo } from './lib/trailer';
 import { clearStoredLists, LIST_KEYS, loadStoredLists, saveStoredList, type ListKey } from './lib/listStore';
 import type { LegalDocId } from './lib/legal';
 
+// Browser-only player (with hls.js / mpegts.js): loaded when first opened. The Android app uses the native player.
+const VideoPlayerModal = lazy(() => import('./components/VideoPlayerModal').then((m) => ({ default: m.VideoPlayerModal })));
+
 /** Saved playback position of a movie / episode (ms). */
 interface ResumePoint {
   pos: number;
@@ -77,6 +79,11 @@ function loadJson<T>(key: string, fallback: T): T {
     return fallback;
   }
 }
+/** Saved lists must be arrays: anything else (a damaged or foreign value) is ignored instead of crashing the first render. */
+function loadArray<T>(key: string): T[] {
+  const value = loadJson<unknown>(key, []);
+  return Array.isArray(value) ? (value as T[]) : [];
+}
 function saveJson(key: string, value: unknown) {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -99,7 +106,8 @@ function credsOf(account: XtreamAccount): XtreamCredentials {
   return { serverUrl: account.serverUrl, username: account.username, password: account.password || '' };
 }
 const REFRESH_INTERVAL_MS = 864e5,
-  MAX_PLAYLIST_ITEMS = 5e3;
+  MAX_PLAYLIST_ITEMS = 5e3,
+  MAX_RESUME_POINTS = 400;
 /**
  * Older test builds could save a built-in demo account. The app ships no demo content any more:
  * such an install starts again at the account screen (the demo lists are not user data).
@@ -113,12 +121,15 @@ function episodeKey(seriesId: string, season: number, episode: number) {
 export default function App() {
   const [dropDemo] = useState(hasSavedDemoAccount),
     [account, setAccount] = useState<XtreamAccount | null>(() => (dropDemo ? null : loadJson('zendit_active_account', null))),
-    [channels, setChannels] = useState<Channel[]>(() => (dropDemo ? [] : loadJson('zendit_channels', []))),
-    [movies, setMovies] = useState<Movie[]>(() => (dropDemo ? [] : loadJson('zendit_movies', []))),
-    [series, setSeries] = useState<Series[]>(() => (dropDemo ? [] : loadJson('zendit_series', []))),
+    [channels, setChannels] = useState<Channel[]>(() => (dropDemo ? [] : loadArray('zendit_channels'))),
+    [movies, setMovies] = useState<Movie[]>(() => (dropDemo ? [] : loadArray('zendit_movies'))),
+    [series, setSeries] = useState<Series[]>(() => (dropDemo ? [] : loadArray('zendit_series'))),
     [settings, setSettings] = useState<AppSettings>(loadSettings),
-    [watchLog, setWatchLog] = useState<WatchLogEntry[]>(() => loadJson('zendit_watch_log', [])),
-    [positions, setPositions] = useState<Record<string, ResumePoint>>(() => loadJson('zendit_positions', {})),
+    [watchLog, setWatchLog] = useState<WatchLogEntry[]>(() => loadArray('zendit_watch_log')),
+    [positions, setPositions] = useState<Record<string, ResumePoint>>(() => {
+      const saved = loadJson<unknown>('zendit_positions', {});
+      return saved && typeof saved === 'object' && !Array.isArray(saved) ? (saved as Record<string, ResumePoint>) : {};
+    }),
     [lastChannelId, setLastChannelId] = useState<string | null>(() => loadJson('zendit_last_channel', null)),
     [tab, setTab] = useState<TabType>(() => (loadSettings().startupBehavior === 'home' ? 'home' : 'live')),
     [searchQuery, setSearchQuery] = useState(''),
@@ -134,7 +145,7 @@ export default function App() {
     [isAnalyticsOpen, setIsAnalyticsOpen] = useState(false),
     [legalDoc, setLegalDoc] = useState<LegalDocId | null>(null),
     [isNativePlaying, setIsNativePlaying] = useState(false),
-    [history, setHistory] = useState<WatchHistoryEntry[]>(() => loadJson('zendit_history', [])),
+    [history, setHistory] = useState<WatchHistoryEntry[]>(() => loadArray('zendit_history')),
     [screenKey, setScreenKey] = useState(0),
     [initialCategory, setInitialCategory] = useState<string | undefined>(undefined),
     [device] = useState(getDeviceInfo),
@@ -402,6 +413,12 @@ export default function App() {
           setPositions((et) => {
             const ct = { ...et };
             for (const [ni, Xt] of Object.entries(ot)) Xt ? (ct[ni] = Xt) : delete ct[ni];
+            // Keep only the most recent resume points so this map cannot grow without limit.
+            const keys = Object.keys(ct);
+            if (keys.length > MAX_RESUME_POINTS) {
+              keys.sort((a, b) => (ct[b].at || 0) - (ct[a].at || 0));
+              for (const key of keys.slice(MAX_RESUME_POINTS)) delete ct[key];
+            }
             return ct;
           }),
         Ht)
@@ -853,6 +870,8 @@ export default function App() {
         (window.removeEventListener('keydown', J), xe == null || xe.then((Ie) => Ie.remove()));
       };
     }, []));
+  // Typing stays instant; the (possibly huge) lists re-filter when the UI has a free moment.
+  const deferredQuery = useDeferredValue(searchQuery);
   const hasContent = channels.length > 0 || movies.length > 0 || series.length > 0;
   if (!listsLoaded && account)
     return (
@@ -908,7 +927,7 @@ export default function App() {
                 movies={movies}
                 series={series}
                 history={history}
-                searchQuery={searchQuery}
+                searchQuery={deferredQuery}
                 onNavigate={navigate}
                 onOpenAccountModal={() => setIsAccountOpen(true)}
                 onSelectMedia={openMediaDetail}
@@ -933,7 +952,7 @@ export default function App() {
                 account={account}
                 settings={settings}
                 initialCategory={initialCategory}
-                searchQuery={searchQuery}
+                searchQuery={deferredQuery}
                 isPlayerOpen={isPlayerOpen || isAccountOpen || !!pinPrompt}
                 onPlayChannel={playChannel}
                 onPlayCatchup={playCatchup}
@@ -945,7 +964,7 @@ export default function App() {
                 channels={channels}
                 recentIds={recentIds('live')}
                 initialCategory={initialCategory}
-                searchQuery={searchQuery}
+                searchQuery={deferredQuery}
                 isPlayerOpen={isPlayerOpen || isAccountOpen || !!pinPrompt}
                 account={account}
                 device={device}
@@ -966,7 +985,7 @@ export default function App() {
                 series={series}
                 recentIds={recentIds(tab === 'movies' ? 'movie' : 'series')}
                 initialCategory={initialCategory}
-                searchQuery={searchQuery}
+                searchQuery={deferredQuery}
                 selectedMedia={selectedMedia}
                 isDetailLoading={isDetailLoading}
                 account={account}
@@ -1013,16 +1032,18 @@ export default function App() {
         )}
         {webPlayerMedia && (
           <div data-nav-layer>
-            <VideoPlayerModal
-              media={webPlayerMedia}
-              activeEpisode={activeEpisode}
-              activeSeasonNum={activeSeasonNum}
-              settings={settings}
-              onClose={closeWebPlayer}
-              onSelectEpisode={(J, xe) => {
-                (setActiveSeasonNum(J), setActiveEpisode(xe));
-              }}
-            />
+            <Suspense fallback={null}>
+              <VideoPlayerModal
+                media={webPlayerMedia}
+                activeEpisode={activeEpisode}
+                activeSeasonNum={activeSeasonNum}
+                settings={settings}
+                onClose={closeWebPlayer}
+                onSelectEpisode={(J, xe) => {
+                  (setActiveSeasonNum(J), setActiveEpisode(xe));
+                }}
+              />
+            </Suspense>
           </div>
         )}
         {isAccountOpen && (

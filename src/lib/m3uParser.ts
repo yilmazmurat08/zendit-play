@@ -1,5 +1,5 @@
 import type { Channel, Movie, Series, Season, Episode } from '../types';
-import { proxiedApiUrl } from './proxy';
+import { HttpError, httpGetText } from './http';
 import { m3uCatchup } from './catchup';
 
 export interface M3UEntry {
@@ -191,11 +191,22 @@ export function m3uEntryToMovie(entry: M3UEntry, index: number): Movie {
 }
 
 export async function fetchM3UFromUrl(url: string): Promise<string> {
-  const res = await fetch(proxiedApiUrl(url));
-  if (!res.ok) {
-    throw new Error(`M3U listesi indirilemedi (HTTP ${res.status}). Adresi kontrol edin.`);
+  let text: string;
+  try {
+    // Big playlists on slow hosts: allow two minutes, and try once more after a dropped connection.
+    text = await httpGetText(url, { timeoutMs: 120000 }).catch((err) => {
+      if (err instanceof HttpError && err.kind === 'status') throw err;
+      return httpGetText(url, { timeoutMs: 120000 });
+    });
+  } catch (err) {
+    if (err instanceof HttpError && err.kind === 'status') {
+      throw new Error(`M3U listesi indirilemedi (HTTP ${err.status}). Adresi kontrol edin.`);
+    }
+    if (err instanceof HttpError && err.kind === 'timeout') {
+      throw new Error('M3U listesi zaman aşımına uğradı. Bağlantınızı kontrol edip tekrar deneyin.');
+    }
+    throw new Error('M3U listesi indirilemedi. Adresi ve internet bağlantınızı kontrol edin.');
   }
-  const text = await res.text();
   if (!text.includes('#EXT')) {
     throw new Error('Bu adres geçerli bir M3U listesi döndürmedi.');
   }

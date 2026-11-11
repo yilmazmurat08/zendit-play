@@ -74,6 +74,7 @@ export function PosterImage({
             src={src}
             alt=""
             loading="lazy"
+            decoding="async"
             onError={() => setFailed(true)}
             className="w-full h-full object-cover scale-125"
             style={{ filter: `blur(${small ? 5 : 18}px) brightness(0.65)` }}
@@ -103,6 +104,7 @@ export function PosterImage({
       src={src}
       alt=""
       loading="lazy"
+      decoding="async"
       onError={() => setFailed(true)}
       className={`w-full h-full object-cover ${className}`}
     />

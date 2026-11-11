@@ -123,28 +123,6 @@ export interface Series {
   };
 }
 
-export interface CategoryStat {
-  name: string;
-  views: number;
-  percentage: number;
-}
-
-export interface WatchStats {
-  total: number;
-  movies: number;
-  series: number;
-  liveTv: number;
-  moviesPercentage: number;
-  seriesPercentage: number;
-  livePercentage: number;
-  topCategories: CategoryStat[];
-  dailyStreak: number;
-  totalHoursWatched: number;
-  scannedPhotosCount: number;
-  scannedVideosCount: number;
-  cacheSizeMB: number;
-}
-
 export type PlayerChoice = 'exo' | 'vlc' | 'mx' | 'system';
 
 export interface ParentalConfig {

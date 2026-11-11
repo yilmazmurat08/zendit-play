@@ -3,7 +3,7 @@ import { Play, Trash2, Tv } from 'lucide-react';
 import type { Channel, Movie, Series } from '../types';
 import { CategoryPanel, PosterImage } from './TvUi';
 import { useParental } from '../lib/parental';
-import { currentProgramme, formatClock, programmeProgress, useProgrammes } from '../lib/epg';
+import { currentProgramme, programmeProgress, useProgrammes } from '../lib/epg';
 import {
   CONTINUE_LABELS,
   MAX_LIVE,

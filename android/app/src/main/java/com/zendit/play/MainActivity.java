@@ -2,6 +2,9 @@ package com.zendit.play;
 
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
+import android.util.Log;
+import android.webkit.RenderProcessGoneDetail;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
@@ -25,14 +28,46 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(NativePlayerPlugin.class);
         registerPlugin(EpgPlugin.class);
         super.onCreate(savedInstanceState);
-        getBridge().setWebViewClient(new AppWebViewClient(getBridge()));
+        getBridge().setWebViewClient(new AppWebViewClient(getBridge(), this));
         CookieManager.getInstance().setAcceptThirdPartyCookies(getBridge().getWebView(), true);
         enterFullscreen();
     }
 
+    /** Time of the last WebView renderer crash (process-wide), to stop a crash loop. */
+    private static long lastRendererCrashAt;
+
+    /**
+     * Android may kill the WebView's renderer process (usually when memory runs out on small
+     * devices). Without handling it the whole app dies. Instead the screen is rebuilt with a fresh
+     * WebView; the saved account and lists load again. A second crash within 15 seconds
+     * closes the app cleanly rather than looping.
+     */
+    void onRendererGone() {
+        long now = SystemClock.elapsedRealtime();
+        boolean looping = lastRendererCrashAt != 0 && now - lastRendererCrashAt < 15000;
+        lastRendererCrashAt = now;
+        Log.w("ZenditPlay", "WebView renderer gone" + (looping ? " again: closing" : ": rebuilding the screen"));
+        // Capacitor destroys the dead WebView itself while the activity is torn down.
+        if (looping || isFinishing()) {
+            finish();
+        } else {
+            recreate();
+        }
+    }
+
     private static class AppWebViewClient extends BridgeWebViewClient {
-        AppWebViewClient(Bridge bridge) {
+        private final MainActivity activity;
+
+        AppWebViewClient(Bridge bridge, MainActivity activity) {
             super(bridge);
+            this.activity = activity;
+        }
+
+        @Override
+        public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+            // true = handled: the app process stays alive.
+            activity.onRendererGone();
+            return true;
         }
 
         @Override // com.getcapacitor.BridgeWebViewClient, android.webkit.WebViewClient

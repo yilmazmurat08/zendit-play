@@ -51,7 +51,8 @@ final class StreamPlayers {
     }
 
     static ExoPlayer create(Context context) {
-        return new ExoPlayer.Builder(context).setMediaSourceFactory(mediaSourceFactory(context, null)).build();
+        // Small live preview window: a short buffer starts faster and keeps memory low next to the WebView.
+        return new ExoPlayer.Builder(context).setLoadControl(loadControl(context, "low")).setMediaSourceFactory(mediaSourceFactory(context, null)).build();
     }
 
     static ExoPlayer create(Context context, PlayerConfig config) {
@@ -59,7 +60,7 @@ final class StreamPlayers {
         if (!config.hardwareAcceleration) {
             renderers.setMediaCodecSelector(SOFTWARE_FIRST);
         }
-        ExoPlayer player = new ExoPlayer.Builder(context, renderers).setLoadControl(loadControl(config.bufferSize)).setMediaSourceFactory(mediaSourceFactory(context, null)).setAudioAttributes(new AudioAttributes.Builder().setUsage(1).setContentType(3).build(), true).setHandleAudioBecomingNoisy(true).build();
+        ExoPlayer player = new ExoPlayer.Builder(context, renderers).setLoadControl(loadControl(context, config.bufferSize)).setMediaSourceFactory(mediaSourceFactory(context, null)).setAudioAttributes(new AudioAttributes.Builder().setUsage(1).setContentType(3).build(), true).setHandleAudioBecomingNoisy(true).build();
         TrackSelectionParameters.Builder params = player.getTrackSelectionParameters().buildUpon();
         if (isLanguageCode(config.audioLanguage)) {
             params.setPreferredAudioLanguage(config.audioLanguage);
@@ -94,14 +95,29 @@ final class StreamPlayers {
         return new DefaultMediaSourceFactory(new DefaultDataSource.Factory(context, http), extractors);
     }
 
-    private static LoadControl loadControl(String bufferSize) {
+    private static LoadControl loadControl(Context context, String bufferSize) {
         DefaultLoadControl.Builder builder = new DefaultLoadControl.Builder();
         if ("low".equals(bufferSize)) {
             builder.setBufferDurationsMs(3000, 15000, 1000, 2000);
         } else if ("high".equals(bufferSize)) {
-            builder.setBufferDurationsMs(60000, 120000, 2500, 5000).setPrioritizeTimeOverSizeThresholds(true);
+            if (isSmallMemoryDevice(context)) {
+                // 1 GB TV sticks: a two-minute buffer of a high-bitrate stream with no size cap runs the
+                // process out of memory. Keep a longer buffer than "normal", but let ExoPlayer cap its size.
+                builder.setBufferDurationsMs(30000, 60000, 2500, 5000);
+            } else {
+                builder.setBufferDurationsMs(60000, 120000, 2500, 5000).setPrioritizeTimeOverSizeThresholds(true);
+            }
         }
         return builder.build();
+    }
+
+    private static boolean isSmallMemoryDevice(Context context) {
+        try {
+            android.app.ActivityManager am = (android.app.ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+            return am.isLowRamDevice() || am.getMemoryClass() <= 192;
+        } catch (RuntimeException e) {
+            return true;
+        }
     }
 
     private static boolean isLanguageCode(String value) {

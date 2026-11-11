@@ -42,7 +42,9 @@ import org.xmlpull.v1.XmlPullParser;
 final class EpgStore {
     private static final int CACHE_VERSION = 2;
     private static final int MAX_DESC_CHARS = 220;
+    /** Upper bound on programmes kept in memory; the real limit is scaled to the device (see {@link #programmeLimit}). */
     private static final int MAX_PROGRAMMES = 400000;
+    private static volatile int programmeLimit = MAX_PROGRAMMES;
     private static final String USER_AGENT = "ZenditPlay/1.1 (Android)";
     private static EpgStore instance;
     private final File cacheFile;
@@ -104,6 +106,22 @@ final class EpgStore {
 
     private EpgStore(Context context) {
         this.cacheFile = new File(context.getApplicationContext().getFilesDir(), "epg-cache.bin");
+        programmeLimit = programmeLimitFor(context);
+    }
+
+    /**
+     * A guide with hundreds of thousands of programmes needs well over 100 MB on the Java heap, which
+     * kills the app on 1 GB TV sticks. Scale the cap to the heap this device gives one app
+     * (about 700 programmes per MB of memory class), and stay lower still on low-RAM devices.
+     */
+    private static int programmeLimitFor(Context context) {
+        try {
+            android.app.ActivityManager am = (android.app.ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+            int limit = Math.max(40000, Math.min(MAX_PROGRAMMES, am.getMemoryClass() * 700));
+            return am.isLowRamDevice() ? Math.min(limit, 60000) : limit;
+        } catch (RuntimeException e) {
+            return 100000;
+        }
     }
 
     static synchronized EpgStore get(Context context) {
@@ -529,7 +547,7 @@ final class EpgStore {
     private static void readProgramme(XmlPullParser p, Matcher matcher, long from, long to, long offsetMs, ParseResult out) throws Exception {
         int event;
         String channel = p.getAttributeValue(null, "channel");
-        if (channel == null || out.count >= 400000) {
+        if (channel == null || out.count >= programmeLimit) {
             skip(p);
             return;
         }
