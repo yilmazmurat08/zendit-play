@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { clearStoredLists, LIST_KEYS } from '../lib/listStore';
 
 interface Props {
   children: ReactNode;
@@ -52,6 +53,23 @@ export class ErrorBoundary extends Component<Props, State> {
           className="tv-focus-ring rounded-full bg-brand px-6 py-3 text-sm font-bold text-white"
         >
           Yeniden başlat
+        </button>
+        <button
+          type="button"
+          onClick={async () => {
+            // Last resort when a restart does not help: drop the downloaded lists (they are fetched
+            // again from the provider on the next start). The account and settings stay.
+            await clearStoredLists().catch(() => {});
+            try {
+              for (const key of LIST_KEYS) localStorage.removeItem(key);
+            } catch {
+              // ignore
+            }
+            window.location.reload();
+          }}
+          className="tv-focus-ring rounded-full bg-white/10 px-6 py-3 text-sm font-semibold text-white/85"
+        >
+          Listeleri yeniden indir (favoriler sıfırlanır)
         </button>
       </div>
     );

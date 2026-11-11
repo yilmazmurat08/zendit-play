@@ -91,3 +91,32 @@ export async function clearStoredLists(): Promise<void> {
     }
   });
 }
+
+const isText = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
+
+/**
+ * Drops entries the screens cannot render (no id / name) and fills in missing optional lists
+ * (genres, cast, seasons). One damaged entry would otherwise crash a screen on each start.
+ * When nothing is dropped the same array is returned.
+ */
+export function sanitizeList<T>(key: ListKey, list: T[]): T[] {
+  const ok = (item: any): boolean => {
+    if (!item || typeof item !== 'object' || !isText(item.id)) return false;
+    if (key === 'zendit_channels' && !(isText(item.name) && typeof item.streamUrl === 'string')) return false;
+    if (key === 'zendit_channels') return true;
+    if (!isText(item.title)) return false;
+    // Optional lists the detail screens read without checking: make sure they are arrays.
+    if (!Array.isArray(item.genres)) item.genres = [];
+    if (!Array.isArray(item.cast)) item.cast = [];
+    if (key === 'zendit_series') {
+      item.seasons = Array.isArray(item.seasons) ? item.seasons.filter((s: any) => s && Array.isArray(s.episodes)) : [];
+    }
+    return true;
+  };
+  let clean: T[] | null = null;
+  for (let i = 0; i < list.length; i++) {
+    if (ok(list[i])) clean?.push(list[i]);
+    else if (!clean) clean = list.slice(0, i);
+  }
+  return clean || list;
+}

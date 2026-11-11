@@ -311,7 +311,7 @@ async function fetchSeriesList(creds: XtreamCredentials): Promise<Series[]> {
     backdrop: r.backdrop_path?.[0] || r.cover || '',
     genres: r.genre ? r.genre.split(',').map((s) => s.trim()).filter(Boolean) : [],
     synopsis: r.plot || '',
-    cast: r.cast ? r.cast.split(',').map((s) => s.trim()).filter(Boolean) : [],
+    cast: r.cast ? String(r.cast).split(',').map((s) => s.trim()).filter(Boolean) : [],
     director: r.director || '',
     category: categories.get(String(r.category_id)) || 'Diğer',
     seasons: [],
@@ -327,13 +327,14 @@ export async function fetchSeriesDetail(creds: XtreamCredentials, series: Series
   if (!Number.isFinite(seriesId)) return {};
   const data = await xtreamFetch<any>(creds, 'get_series_info', { series_id: seriesId });
   const info = data?.info || {};
-  const episodesBySeason: Record<string, any[]> = data?.episodes || {};
+  const episodesBySeason: Record<string, unknown> = data?.episodes && typeof data.episodes === 'object' ? data.episodes : {};
 
   const seasons: Season[] = Object.keys(episodesBySeason)
     .map(Number)
+    .filter(Number.isFinite)
     .sort((a, b) => a - b)
     .map((seasonNum) => {
-      const rawEpisodes = episodesBySeason[String(seasonNum)] || [];
+      const rawEpisodes = toList<any>(episodesBySeason[String(seasonNum)]);
       const episodes: Episode[] = rawEpisodes
         .slice()
         .sort((a: any, b: any) => Number(a.episode_num) - Number(b.episode_num))

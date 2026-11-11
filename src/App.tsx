@@ -50,7 +50,7 @@ import { checkPin, DEFAULT_PARENTAL, isItemRestricted, makeParentalApi, Parental
 import { useContinueLists, type ContinueKind } from './lib/continueWatching';
 import { appendWatchLog } from './lib/watchLog';
 import { trailerInfo } from './lib/trailer';
-import { clearStoredLists, LIST_KEYS, loadStoredLists, saveStoredList, type ListKey } from './lib/listStore';
+import { clearStoredLists, LIST_KEYS, loadStoredLists, sanitizeList, saveStoredList, type ListKey } from './lib/listStore';
 import type { LegalDocId } from './lib/legal';
 
 // Browser-only player (with hls.js / mpegts.js): loaded when first opened. The Android app uses the native player.
@@ -106,7 +106,9 @@ function credsOf(account: XtreamAccount): XtreamCredentials {
   return { serverUrl: account.serverUrl, username: account.username, password: account.password || '' };
 }
 const REFRESH_INTERVAL_MS = 864e5,
-  MAX_PLAYLIST_ITEMS = 5e3,
+  // Channels handed to the native player around the one being opened (for channel up / down and the
+  // in-player list). Kept moderate: the whole list crosses the bridge on every channel open.
+  MAX_PLAYLIST_ITEMS = 2000,
   MAX_RESUME_POINTS = 400;
 /**
  * Older test builds could save a built-in demo account. The app ships no demo content any more:
@@ -121,9 +123,9 @@ function episodeKey(seriesId: string, season: number, episode: number) {
 export default function App() {
   const [dropDemo] = useState(hasSavedDemoAccount),
     [account, setAccount] = useState<XtreamAccount | null>(() => (dropDemo ? null : loadJson('zendit_active_account', null))),
-    [channels, setChannels] = useState<Channel[]>(() => (dropDemo ? [] : loadArray('zendit_channels'))),
-    [movies, setMovies] = useState<Movie[]>(() => (dropDemo ? [] : loadArray('zendit_movies'))),
-    [series, setSeries] = useState<Series[]>(() => (dropDemo ? [] : loadArray('zendit_series'))),
+    [channels, setChannels] = useState<Channel[]>(() => (dropDemo ? [] : sanitizeList('zendit_channels', loadArray<Channel>('zendit_channels')))),
+    [movies, setMovies] = useState<Movie[]>(() => (dropDemo ? [] : sanitizeList('zendit_movies', loadArray<Movie>('zendit_movies')))),
+    [series, setSeries] = useState<Series[]>(() => (dropDemo ? [] : sanitizeList('zendit_series', loadArray<Series>('zendit_series')))),
     [settings, setSettings] = useState<AppSettings>(loadSettings),
     [watchLog, setWatchLog] = useState<WatchLogEntry[]>(() => loadArray('zendit_watch_log')),
     [positions, setPositions] = useState<Record<string, ResumePoint>>(() => {
@@ -236,7 +238,7 @@ export default function App() {
           } else {
             const Ie = { zendit_channels: setChannels, zendit_movies: setMovies, zendit_series: setSeries };
             for (const Ke of LIST_KEYS) {
-              const Qe = xe[Ke];
+              const Qe = xe[Ke] && sanitizeList(Ke, xe[Ke]);
               if (Qe) {
                 ((savedListsRef.current[Ke] = Qe), Ie[Ke](Qe));
                 try {
@@ -265,7 +267,7 @@ export default function App() {
               localStorage.removeItem(J);
             } catch {}
           } else saveJson(J, xe);
-        }, 400)));
+        }, 1200)));
     };
   (useEffect(() => persistList('zendit_channels', channels), [channels, listsLoaded]),
     useEffect(() => persistList('zendit_movies', movies), [movies, listsLoaded]),
