@@ -105,6 +105,9 @@ public class PlayerActivity extends AppCompatActivity implements PlayerGestures.
     /** Tool chips panel (audio, subtitles, aspect...) opened from the menu button. */
     private View toolsPanel;
     private ImageButton menuButton;
+    /** Series: previous / next episode buttons in the bottom row. */
+    private ImageButton prevItemButton;
+    private ImageButton nextItemButton;
     private boolean controlsVisible;
     private TextView durationView;
     private EpgStore epg;
@@ -767,6 +770,7 @@ public class PlayerActivity extends AppCompatActivity implements PlayerGestures.
             finish();
             return;
         }
+        CrashLog.install(this);
         setContentView(R.layout.zendit_player);
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(z) { // from class: com.zendit.play.PlayerActivity.2
             @Override // androidx.activity.OnBackPressedCallback
@@ -853,6 +857,8 @@ public class PlayerActivity extends AppCompatActivity implements PlayerGestures.
         this.controls = findViewById(R.id.zp_controls);
         this.toolsPanel = findViewById(R.id.zp_tools_panel);
         this.menuButton = (ImageButton) findViewById(R.id.zp_menu);
+        this.prevItemButton = (ImageButton) findViewById(R.id.zp_prev_item);
+        this.nextItemButton = (ImageButton) findViewById(R.id.zp_next_item);
         this.topBar = findViewById(R.id.zp_top_bar);
         this.bottomBar = findViewById(R.id.zp_bottom_bar);
         this.titleView = (TextView) findViewById(R.id.zp_title);
@@ -960,6 +966,18 @@ public class PlayerActivity extends AppCompatActivity implements PlayerGestures.
             @Override
             public void onClick(View v) {
                 toggleToolsPanel();
+            }
+        });
+        this.prevItemButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                stepEpisode(-1);
+            }
+        });
+        this.nextItemButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                stepEpisode(1);
             }
         });
         findViewById(R.id.zp_back).setOnClickListener(new View.OnClickListener() { // from class: com.zendit.play.PlayerActivity$$ExternalSyntheticLambda5
@@ -1647,6 +1665,17 @@ public class PlayerActivity extends AppCompatActivity implements PlayerGestures.
         this.toolRestart.setVisibility((!live || canRestartLive()) ? 0 : 8);
         this.toolLive.setVisibility(catchup ? 0 : 8);
         this.toolEpisodes.setVisibility((item.isLive() || catchup || !multiple) ? 8 : 0);
+        boolean episodes = !item.isLive() && !catchup && multiple;
+        this.prevItemButton.setVisibility(episodes ? View.VISIBLE : View.GONE);
+        this.nextItemButton.setVisibility(episodes ? View.VISIBLE : View.GONE);
+        if (episodes) {
+            boolean hasPrev = this.index > 0;
+            boolean hasNext = this.index + 1 < this.items.size();
+            this.prevItemButton.setEnabled(hasPrev);
+            this.prevItemButton.setAlpha(hasPrev ? 1.0f : 0.35f);
+            this.nextItemButton.setEnabled(hasNext);
+            this.nextItemButton.setAlpha(hasNext ? 1.0f : 0.35f);
+        }
         if (catchup) {
             this.nowView.setText(this.catchupTitle);
             this.nowLeftView.setVisibility(8);
@@ -2535,6 +2564,16 @@ public class PlayerActivity extends AppCompatActivity implements PlayerGestures.
         if (this.index + 1 < this.items.size()) {
             playItem(this.index + 1, this.items.get(this.index + 1).startPositionMs, true);
         }
+    }
+
+    /** Previous / next episode from the bottom-row buttons (resumes each episode where it was left). */
+    private void stepEpisode(int delta) {
+        int target = this.index + delta;
+        if (target < 0 || target >= this.items.size()) {
+            return;
+        }
+        playItem(target, this.items.get(target).startPositionMs, true);
+        bump();
     }
 
     private void cancelNextCountdown() {

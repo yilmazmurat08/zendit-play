@@ -104,6 +104,28 @@ export async function xtreamLogin(creds: XtreamCredentials): Promise<XtreamAccou
   };
 }
 
+/**
+ * Panel fields are loosely typed: a title like "4857" often arrives as the number 4857, and some
+ * fields come as null or arrays. Every text the screens use goes through this, so string methods
+ * (match, trim, toLowerCase...) never meet a number and crash a screen.
+ */
+function text(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return '';
+}
+
+/** First image URL of a field that may be a string or an array of strings. */
+function image(value: unknown): string {
+  return Array.isArray(value) ? text(value[0]) : text(value);
+}
+
+/** Comma separated panel text -> list. */
+function list(value: unknown): string[] {
+  return text(value).split(',').map((v) => v.trim()).filter(Boolean);
+}
+
 /** Some panels answer with an object keyed by index instead of an array. */
 function toList<T>(raw: unknown): T[] {
   if (Array.isArray(raw)) return raw as T[];
@@ -120,7 +142,7 @@ async function fetchCategoryMap(creds: XtreamCredentials, action: string): Promi
   const map = new Map<string, string>();
   // Category names are a nicety: if this call fails the list still loads (items land in "Diğer").
   const raw = await xtreamFetch<RawCategory[]>(creds, action).catch(() => null);
-  for (const c of toList<RawCategory>(raw)) map.set(String(c.category_id), c.category_name || 'Kategori');
+  for (const c of toList<RawCategory>(raw)) map.set(String(c.category_id), text(c.category_name) || 'Kategori');
   return map;
 }
 
@@ -187,10 +209,10 @@ async function fetchChannels(creds: XtreamCredentials, liveFormat: '.ts' | '.m3u
   const ext: 'm3u8' | 'ts' = liveFormat === '.ts' ? 'ts' : 'm3u8';
   return toList<RawLiveStream>(raw).map((r) => ({
     id: `live_${r.stream_id}`,
-    name: r.name || `Kanal ${r.num}`,
+    name: text(r.name) || `Kanal ${r.num}`,
     streamUrl: buildLiveStreamUrl(creds, r.stream_id, ext),
     category: categories.get(String(r.category_id)) || 'Diğer',
-    logo: r.stream_icon || '',
+    logo: image(r.stream_icon),
     number: Number(r.num) || r.stream_id,
     currentShow: '',
     nextShow: '',
@@ -230,15 +252,15 @@ async function fetchMovies(creds: XtreamCredentials): Promise<Movie[]> {
     xtreamFetch<RawVodStream[]>(creds, 'get_vod_streams', undefined, LIST_TIMEOUT_MS),
   ]);
   return toList<RawVodStream>(raw).map((r) => {
-    const ext = r.container_extension || 'mp4';
+    const ext = text(r.container_extension) || 'mp4';
     return {
       id: `vod_${r.stream_id}`,
-      title: r.name || 'Film',
-      year: extractYear(r.name),
+      title: text(r.name) || 'Film',
+      year: extractYear(text(r.name)),
       rating: ratingToTenScale(r),
       duration: '',
-      poster: r.stream_icon || '',
-      backdrop: r.stream_icon || '',
+      poster: image(r.stream_icon),
+      backdrop: image(r.stream_icon),
       genres: [],
       synopsis: '',
       cast: [],
@@ -260,13 +282,13 @@ export async function fetchVodDetail(creds: XtreamCredentials, movie: Movie): Pr
   const movieData = data?.movie_data || {};
   const ext = movieData.container_extension || undefined;
   return {
-    synopsis: info.plot || movie.synopsis,
-    cast: info.cast ? String(info.cast).split(',').map((s: string) => s.trim()).filter(Boolean) : movie.cast,
-    director: info.director || movie.director,
-    genres: info.genre ? String(info.genre).split(',').map((s: string) => s.trim()).filter(Boolean) : movie.genres,
+    synopsis: text(info.plot) || movie.synopsis,
+    cast: list(info.cast).length ? list(info.cast) : movie.cast,
+    director: text(info.director) || movie.director,
+    genres: list(info.genre).length ? list(info.genre) : movie.genres,
     duration: info.duration_secs ? formatDurationTr(Number(info.duration_secs)) : movie.duration,
-    backdrop: info.backdrop_path?.[0] || info.movie_image || movie.backdrop,
-    poster: info.movie_image || movie.poster,
+    backdrop: image(info.backdrop_path) || image(info.movie_image) || movie.backdrop,
+    poster: image(info.movie_image) || movie.poster,
     rating: info.rating ? String(info.rating) : movie.rating,
     streamUrl: ext ? buildVodStreamUrl(creds, streamId, ext) : movie.streamUrl,
     trailer: firstText(info.youtube_trailer, info.trailer) || movie.trailer,
@@ -303,16 +325,16 @@ async function fetchSeriesList(creds: XtreamCredentials): Promise<Series[]> {
   ]);
   return toList<RawSeries>(raw).map((r) => ({
     id: `series_${r.series_id}`,
-    title: r.name || 'Dizi',
-    year: extractYear(r.releaseDate),
+    title: text(r.name) || 'Dizi',
+    year: extractYear(text(r.releaseDate)),
     rating: ratingToTenScale(r),
     seasonsCount: 0,
-    poster: r.cover || '',
-    backdrop: r.backdrop_path?.[0] || r.cover || '',
-    genres: r.genre ? r.genre.split(',').map((s) => s.trim()).filter(Boolean) : [],
-    synopsis: r.plot || '',
-    cast: r.cast ? String(r.cast).split(',').map((s) => s.trim()).filter(Boolean) : [],
-    director: r.director || '',
+    poster: image(r.cover),
+    backdrop: image(r.backdrop_path) || image(r.cover),
+    genres: list(r.genre),
+    synopsis: text(r.plot),
+    cast: list(r.cast),
+    director: text(r.director),
     category: categories.get(String(r.category_id)) || 'Diğer',
     seasons: [],
     isFavorite: false,
@@ -339,14 +361,14 @@ export async function fetchSeriesDetail(creds: XtreamCredentials, series: Series
         .slice()
         .sort((a: any, b: any) => Number(a.episode_num) - Number(b.episode_num))
         .map((ep: any) => {
-          const ext = ep.container_extension || 'mp4';
+          const ext = text(ep.container_extension) || 'mp4';
           return {
             episodeNum: Number(ep.episode_num),
-            title: ep.title || `Bölüm ${ep.episode_num}`,
+            title: text(ep.title) || `Bölüm ${ep.episode_num}`,
             duration: ep.info?.duration ? String(ep.info.duration) : formatDurationTr(Number(ep.info?.duration_secs || 0)),
             streamUrl: buildSeriesEpisodeUrl(creds, Number(ep.id), ext),
-            plot: ep.info?.plot || '',
-            thumbnail: ep.info?.movie_image || series.poster,
+            plot: text(ep.info?.plot),
+            thumbnail: image(ep.info?.movie_image) || series.poster,
             rating: ep.info?.rating ? String(ep.info.rating) : undefined,
           } satisfies Episode;
         });
@@ -356,12 +378,12 @@ export async function fetchSeriesDetail(creds: XtreamCredentials, series: Series
   return {
     seasons,
     seasonsCount: seasons.length,
-    synopsis: info.plot || series.synopsis,
-    cast: info.cast ? String(info.cast).split(',').map((s: string) => s.trim()).filter(Boolean) : series.cast,
-    director: info.director || series.director,
-    genres: info.genre ? String(info.genre).split(',').map((s: string) => s.trim()).filter(Boolean) : series.genres,
-    backdrop: info.backdrop_path?.[0] || series.backdrop,
-    poster: info.cover || series.poster,
+    synopsis: text(info.plot) || series.synopsis,
+    cast: list(info.cast).length ? list(info.cast) : series.cast,
+    director: text(info.director) || series.director,
+    genres: list(info.genre).length ? list(info.genre) : series.genres,
+    backdrop: image(info.backdrop_path) || series.backdrop,
+    poster: image(info.cover) || series.poster,
     trailer: firstText(info.youtube_trailer, info.trailer) || series.trailer,
   };
 }

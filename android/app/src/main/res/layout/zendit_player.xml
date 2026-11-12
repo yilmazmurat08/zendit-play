@@ -262,7 +262,7 @@
                 android:gravity="center_vertical"
                 android:orientation="horizontal"
                 android:id="@+id/zp_center"
-                android:layout_width="wrap_content"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp">
                 <ImageButton
@@ -280,6 +280,23 @@
                     android:id="@+id/zp_right"
                     android:src="@drawable/zp_ic_forward"
                     android:contentDescription="10 saniye ileri"
+                    style="@style/ZpIconButton"/>
+                <View
+                    android:layout_width="0dp"
+                    android:layout_height="1dp"
+                    android:layout_weight="1"/>
+                <!-- Series: previous / next episode, right-aligned (hidden for live TV and single films). -->
+                <ImageButton
+                    android:id="@+id/zp_prev_item"
+                    android:src="@drawable/zp_ic_skip_previous"
+                    android:contentDescription="Önceki bölüm"
+                    android:visibility="gone"
+                    style="@style/ZpIconButton"/>
+                <ImageButton
+                    android:id="@+id/zp_next_item"
+                    android:src="@drawable/zp_ic_skip_next"
+                    android:contentDescription="Sonraki bölüm"
+                    android:visibility="gone"
                     style="@style/ZpIconButton"/>
             </LinearLayout>
         </LinearLayout>

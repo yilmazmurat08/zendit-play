@@ -94,6 +94,10 @@ export interface NativePlayerPlugin {
   /** Which external player apps are installed. */
   players(): Promise<InstalledPlayers>;
   deviceInfo(): Promise<NativeDeviceInfo>;
+  /** Reason of the last crash saved on the device ('' when none); reading clears it. */
+  lastCrash(): Promise<{ text: string }>;
+  /** Android share sheet with a text. */
+  shareText(options: { text: string; title?: string }): Promise<void>;
   /** Clears the WebView and app cache folders. */
   clearCache(): Promise<void>;
   /** Live TV preview: a native video view drawn over the WebView at `rect`. */

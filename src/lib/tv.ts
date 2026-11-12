@@ -253,7 +253,22 @@ export function useSpatialNavigation() {
       const active = document.activeElement as HTMLElement | null;
       const tag = active?.tagName;
       if (tag === 'SELECT' || tag === 'TEXTAREA') return;
-      if (tag === 'INPUT' && (dir === 'left' || dir === 'right')) return;
+      if (tag === 'INPUT' && (dir === 'left' || dir === 'right')) {
+        // Left / right move the caret inside a text box; only at the edge of the text do they move
+        // focus on (e.g. from "Kullanıcı adı" to "Şifre" on the TV remote).
+        const input = active as HTMLInputElement;
+        let start: number | null = null;
+        let end: number | null = null;
+        try {
+          start = input.selectionStart;
+          end = input.selectionEnd;
+        } catch {
+          // Input types without a caret (number, email on some WebViews): treat as at the edge.
+        }
+        const length = input.value.length;
+        if (dir === 'left' && start !== null && start > 0) return;
+        if (dir === 'right' && end !== null && end < length) return;
+      }
 
       const layers = document.querySelectorAll('[data-nav-layer]');
       const scope: ParentNode = layers.length ? layers[layers.length - 1] : document;

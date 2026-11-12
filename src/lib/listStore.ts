@@ -101,7 +101,12 @@ const isText = (value: unknown): value is string => typeof value === 'string' &&
  */
 export function sanitizeList<T>(key: ListKey, list: T[]): T[] {
   const ok = (item: any): boolean => {
-    if (!item || typeof item !== 'object' || !isText(item.id)) return false;
+    if (!item || typeof item !== 'object') return false;
+    // Older builds saved panel numbers as-is (a title like 4857): turn them into text.
+    for (const field of ['id', 'name', 'title', 'category', 'logo', 'poster', 'backdrop', 'synopsis', 'director']) {
+      if (typeof item[field] === 'number') item[field] = String(item[field]);
+    }
+    if (!isText(item.id)) return false;
     if (key === 'zendit_channels' && !(isText(item.name) && typeof item.streamUrl === 'string')) return false;
     if (key === 'zendit_channels') return true;
     if (!isText(item.title)) return false;

@@ -25,6 +25,7 @@ import com.getcapacitor.BridgeWebViewClient;
 public class MainActivity extends BridgeActivity {
     @Override // com.getcapacitor.BridgeActivity, androidx.fragment.app.FragmentActivity, androidx.activity.ComponentActivity, androidx.core.app.ComponentActivity, android.app.Activity
     protected void onCreate(Bundle savedInstanceState) {
+        CrashLog.install(this);
         registerPlugin(NativePlayerPlugin.class);
         registerPlugin(EpgPlugin.class);
         super.onCreate(savedInstanceState);
@@ -47,6 +48,9 @@ public class MainActivity extends BridgeActivity {
         boolean looping = lastRendererCrashAt != 0 && now - lastRendererCrashAt < 15000;
         lastRendererCrashAt = now;
         Log.w("ZenditPlay", "WebView renderer gone" + (looping ? " again: closing" : ": rebuilding the screen"));
+        CrashLog.note(this, "Arayüz bellek yetersizliğinden kapandı", looping
+                ? "WebView işlemi 15 saniye içinde ikinci kez kapandı; uygulama kapatıldı."
+                : "WebView işlemi kapandı; ekran yeniden kuruldu.");
         // Capacitor destroys the dead WebView itself while the activity is torn down.
         if (looping || isFinishing()) {
             finish();

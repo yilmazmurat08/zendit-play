@@ -123,9 +123,15 @@ function episodeKey(seriesId: string, season: number, episode: number) {
 export default function App() {
   const [dropDemo] = useState(hasSavedDemoAccount),
     [account, setAccount] = useState<XtreamAccount | null>(() => (dropDemo ? null : loadJson('zendit_active_account', null))),
-    [channels, setChannels] = useState<Channel[]>(() => (dropDemo ? [] : sanitizeList('zendit_channels', loadArray<Channel>('zendit_channels')))),
-    [movies, setMovies] = useState<Movie[]>(() => (dropDemo ? [] : sanitizeList('zendit_movies', loadArray<Movie>('zendit_movies')))),
-    [series, setSeries] = useState<Series[]>(() => (dropDemo ? [] : sanitizeList('zendit_series', loadArray<Series>('zendit_series')))),
+    [channels, setChannels] = useState<Channel[]>(() =>
+      dropDemo ? [] : sanitizeList('zendit_channels', loadArray<Channel>('zendit_channels')),
+    ),
+    [movies, setMovies] = useState<Movie[]>(() =>
+      dropDemo ? [] : sanitizeList('zendit_movies', loadArray<Movie>('zendit_movies')),
+    ),
+    [series, setSeries] = useState<Series[]>(() =>
+      dropDemo ? [] : sanitizeList('zendit_series', loadArray<Series>('zendit_series')),
+    ),
     [settings, setSettings] = useState<AppSettings>(loadSettings),
     [watchLog, setWatchLog] = useState<WatchLogEntry[]>(() => loadArray('zendit_watch_log')),
     [positions, setPositions] = useState<Record<string, ResumePoint>>(() => {
@@ -164,6 +170,8 @@ export default function App() {
     pinPromptIdRef = useRef(0),
     [isCategoryEditorOpen, setIsCategoryEditorOpen] = useState(false),
     [trailer, setTrailer] = useState<{ youtubeId: string; url: string; title: string } | null>(null),
+    [crashReport, setCrashReport] = useState<string | null>(null),
+    exitArmedAtRef = useRef(0),
     pinFocusRef = useRef<HTMLElement | null>(null),
     askPin = (J: PinPromptOptions) =>
       new Promise<string | null>((xe) => {
@@ -833,7 +841,8 @@ export default function App() {
       (navigate('seasons' in J ? 'series' : 'movies'), selectMedia(J));
     },
     handleBack = () => {
-      if (pinPrompt) closePin(null);
+      if (crashReport) setCrashReport(null);
+      else if (pinPrompt) closePin(null);
       else if (trailer) setTrailer(null);
       else if (isCategoryEditorOpen) setIsCategoryEditorOpen(false);
       else if (webPlayerMedia) closeWebPlayer();
@@ -865,15 +874,64 @@ export default function App() {
       window.addEventListener('keydown', J);
       const xe = isNativeApp()
         ? CapApp.addListener('backButton', () => {
-            backRef.current() || CapApp.exitApp();
+            if (backRef.current()) return;
+            // Nothing left to close: a single stray Back press must not close the app.
+            const now = Date.now();
+            if (now - exitArmedAtRef.current < 2500) {
+              CapApp.exitApp();
+              return;
+            }
+            exitArmedAtRef.current = now;
+            setToast("Çıkmak için tekrar Geri'ye basın");
           })
         : null;
       return () => {
         (window.removeEventListener('keydown', J), xe == null || xe.then((Ie) => Ie.remove()));
       };
     }, []));
+  // Crash report from the previous run (native side), offered once.
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    NativePlayer.lastCrash()
+      .then((r) => r?.text && setCrashReport(r.text))
+      .catch(() => {});
+  }, []);
   // Typing stays instant; the (possibly huge) lists re-filter when the UI has a free moment.
   const deferredQuery = useDeferredValue(searchQuery);
+  const crashDialog = crashReport ? (
+    <div data-nav-layer className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4">
+      <div role="dialog" aria-modal="true" className="glass bg-surface/95 w-full max-w-lg rounded-3xl p-6 flex flex-col gap-4">
+        <h2 className="text-lg font-bold text-white">Uygulama beklenmedik şekilde kapandı</h2>
+        <p className="text-sm text-white/70">
+          Son kullanımda bir sorun oluştu. Raporu geliştiriciye gönderirseniz sorun daha hızlı düzeltilir. Rapor kişisel bilgi
+          içermez; yalnızca hatanın teknik nedenini ve cihaz modelini içerir.
+        </p>
+        <pre className="max-h-40 overflow-auto rounded-xl bg-black/40 p-3 text-[11px] leading-snug text-white/60 whitespace-pre-wrap">
+          {crashReport.slice(0, 1500)}
+        </pre>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            autoFocus
+            onClick={() => {
+              NativePlayer.shareText({ text: crashReport, title: 'Zendit Player hata raporu' }).catch(() => {});
+              setCrashReport(null);
+            }}
+            className="tv-focus-ring flex-1 rounded-full bg-brand px-4 py-3 text-sm font-bold text-white"
+          >
+            Raporu paylaş
+          </button>
+          <button
+            type="button"
+            onClick={() => setCrashReport(null)}
+            className="tv-focus-ring flex-1 rounded-full bg-white/10 px-4 py-3 text-sm font-semibold text-white"
+          >
+            Kapat
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
   const hasContent = channels.length > 0 || movies.length > 0 || series.length > 0;
   if (!listsLoaded && account)
     return (
@@ -884,12 +942,15 @@ export default function App() {
     );
   if (!hasContent)
     return (
-      <AccountLoginModal
-        variant="fullscreen"
-        currentAccount={null}
-        liveStreamFormat={settings.liveStreamFormat}
-        onSaveAccount={handleSaveAccount}
-      />
+      <>
+        {crashDialog}
+        <AccountLoginModal
+          variant="fullscreen"
+          currentAccount={null}
+          liveStreamFormat={settings.liveStreamFormat}
+          onSaveAccount={handleSaveAccount}
+        />
+      </>
     );
   const openCategoryEditor = async () => {
     (settings.parental.enabled &&
@@ -1027,6 +1088,7 @@ export default function App() {
             />
           </div>
         )}
+        {crashDialog}
         {toast && (
           <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] max-w-[90%] bg-surface border border-white/10 text-amber-300 text-xs tv:text-[1.1rem] font-medium px-4 py-2.5 rounded-xl shadow-lg">
             {toast}

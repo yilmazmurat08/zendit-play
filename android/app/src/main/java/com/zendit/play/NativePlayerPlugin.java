@@ -230,6 +230,32 @@ public class NativePlayerPlugin extends Plugin {
         call.reject("Fragman adresi yok");
     }
 
+    /** Last crash report saved on the device ({@code text} is empty when there is none). */
+    @PluginMethod
+    public void lastCrash(PluginCall call) {
+        String text = CrashLog.take(getContext());
+        JSObject result = new JSObject();
+        result.put("text", text == null ? "" : text);
+        call.resolve(result);
+    }
+
+    /** Opens Android's share sheet with a text (crash report). */
+    @PluginMethod
+    public void shareText(PluginCall call) {
+        Intent send = new Intent(Intent.ACTION_SEND);
+        send.setType("text/plain");
+        send.putExtra(Intent.EXTRA_SUBJECT, call.getString("title", "Zendit Player"));
+        send.putExtra(Intent.EXTRA_TEXT, call.getString("text", ""));
+        Intent chooser = Intent.createChooser(send, call.getString("title", "Paylaş"));
+        chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            getContext().startActivity(chooser);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Paylaşılacak uygulama bulunamadı");
+        }
+    }
+
     @PluginMethod
     public void players(PluginCall call) {
         PackageManager pm = getContext().getPackageManager();
