@@ -738,10 +738,10 @@ export function SettingsScreen({
             ))}
           </dl>
         </div>
-        <Row label="Playlist / hesap" description="Başka bir Xtream hesabı veya M3U listesi ekleyin.">
+        <Row label="Listelerim" description="En fazla 4 Xtream hesabı veya M3U listesi ekleyin, aralarında tek dokunuşla geçin.">
           <ActionButton onClick={onOpenAccount}>
             <UserRound className="w-3.5 h-3.5" />
-            Hesabı değiştir
+            Listeleri yönet
           </ActionButton>
         </Row>
       </Section>

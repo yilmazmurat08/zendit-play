@@ -125,3 +125,66 @@ export function sanitizeList<T>(key: ListKey, list: T[]): T[] {
   }
   return clean || list;
 }
+
+/* ---------- Playlists that are not open right now ---------- */
+
+/**
+ * Only the open playlist's lists are kept in memory (1 GB TV sticks). The others are "parked" in
+ * IndexedDB under their account id, favourites and progress included, and come back on a switch.
+ */
+export interface ParkedLists {
+  channels: unknown[];
+  movies: unknown[];
+  series: unknown[];
+}
+
+const parkedKey = (accountId: string) => `parked:${accountId}`;
+
+export async function saveParkedLists(accountId: string, lists: ParkedLists): Promise<boolean> {
+  const db = await openDb();
+  if (!db) return false;
+  return new Promise((resolve) => {
+    try {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).put(lists, parkedKey(accountId));
+      tx.oncomplete = () => resolve(true);
+      tx.onerror = () => resolve(false);
+      tx.onabort = () => resolve(false);
+    } catch {
+      resolve(false);
+    }
+  });
+}
+
+export async function loadParkedLists(accountId: string): Promise<ParkedLists | null> {
+  const db = await openDb();
+  if (!db) return null;
+  return new Promise((resolve) => {
+    try {
+      const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(parkedKey(accountId));
+      req.onsuccess = () => {
+        const v = req.result;
+        resolve(v && Array.isArray(v.channels) && Array.isArray(v.movies) && Array.isArray(v.series) ? (v as ParkedLists) : null);
+      };
+      req.onerror = () => resolve(null);
+    } catch {
+      resolve(null);
+    }
+  });
+}
+
+export async function deleteParkedLists(accountId: string): Promise<void> {
+  const db = await openDb();
+  if (!db) return;
+  await new Promise<void>((resolve) => {
+    try {
+      const tx = db.transaction(STORE, 'readwrite');
+      tx.objectStore(STORE).delete(parkedKey(accountId));
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => resolve();
+      tx.onabort = () => resolve();
+    } catch {
+      resolve();
+    }
+  });
+}

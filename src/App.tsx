@@ -50,7 +50,18 @@ import { checkPin, DEFAULT_PARENTAL, isItemRestricted, makeParentalApi, Parental
 import { useContinueLists, type ContinueKind } from './lib/continueWatching';
 import { appendWatchLog } from './lib/watchLog';
 import { trailerInfo } from './lib/trailer';
-import { clearStoredLists, LIST_KEYS, loadStoredLists, sanitizeList, saveStoredList, type ListKey } from './lib/listStore';
+import {
+  clearStoredLists,
+  deleteParkedLists,
+  LIST_KEYS,
+  loadParkedLists,
+  loadStoredLists,
+  sanitizeList,
+  saveParkedLists,
+  saveStoredList,
+  type ListKey,
+} from './lib/listStore';
+import { MAX_PLAYLISTS, PlaylistManager } from './components/PlaylistManager';
 import type { LegalDocId } from './lib/legal';
 
 // Browser-only player (with hls.js / mpegts.js): loaded when first opened. The Android app uses the native player.
@@ -170,6 +181,15 @@ export default function App() {
     pinPromptIdRef = useRef(0),
     [isCategoryEditorOpen, setIsCategoryEditorOpen] = useState(false),
     [trailer, setTrailer] = useState<{ youtubeId: string; url: string; title: string } | null>(null),
+    // All saved playlists (up to MAX_PLAYLISTS); only the active one's lists are in memory.
+    [accounts, setAccounts] = useState<XtreamAccount[]>(() =>
+      loadArray<XtreamAccount>('zendit_accounts').filter((a) => a && typeof a.id === 'string' && (a as any).type !== 'demo'),
+    ),
+    [isPlaylistsOpen, setIsPlaylistsOpen] = useState(false),
+    [switchingId, setSwitchingId] = useState<string | null>(null),
+    // Playlist the account form edits (null = add a new one).
+    [accountFormTarget, setAccountFormTarget] = useState<XtreamAccount | null>(null),
+    activeIdRef = useRef<string | null>(null),
     [crashReport, setCrashReport] = useState<string | null>(null),
     exitArmedAtRef = useRef(0),
     pinFocusRef = useRef<HTMLElement | null>(null),
@@ -227,6 +247,20 @@ export default function App() {
     }, [isPlayerOpen]),
     useEffect(() => saveJson('zendit_history', history), [history]),
     useEffect(() => saveJson('zendit_active_account', account), [account]));
+  activeIdRef.current = account?.id ?? null;
+  // The open playlist is always in the saved list (its counts / refresh time kept up to date).
+  useEffect(() => {
+    if (!account) return;
+    setAccounts((prev) => {
+      const i = prev.findIndex((a) => a.id === account.id);
+      if (i < 0) return prev.length >= MAX_PLAYLISTS ? prev : [...prev, account];
+      if (prev[i] === account) return prev;
+      const next = [...prev];
+      next[i] = account;
+      return next;
+    });
+  }, [account]);
+  useEffect(() => saveJson('zendit_accounts', accounts), [accounts]);
   const [listsLoaded, setListsLoaded] = useState(false),
     idbAvailableRef = useRef(true),
     savedListsRef = useRef<Record<string, unknown>>({});
@@ -663,12 +697,83 @@ export default function App() {
     const J = channels.find((xe) => xe.id === lastChannelId);
     J && !isHidden('live', J) && setTimeout(() => playChannel(J), 600);
   }, [channels.length]);
-  const handleSaveAccount = (J: XtreamAccount, xe: { channels: Channel[]; movies: Movie[]; series: Series[] }) => {
+  const handleSaveAccount = async (J: XtreamAccount, xe: { channels: Channel[]; movies: Movie[]; series: Series[] }) => {
+      // Adding (or editing) another playlist: keep the open one's lists, favourites included.
+      if (account && account.id !== J.id) await parkActiveLists();
       (setAccount({ ...J, lastRefreshAt: Date.now() }),
         setChannels(xe.channels),
         setMovies(xe.movies),
         setSeries(xe.series),
         setIsAccountOpen(false));
+      J.id !== account?.id && deleteParkedLists(J.id);
+    },
+    /** Moves the open playlist's lists out of memory into IndexedDB under its id. */
+    parkActiveLists = async () => {
+      if (!account) return;
+      LIST_KEYS.forEach((k) => window.clearTimeout(saveTimersRef.current[k]));
+      await saveParkedLists(account.id, { channels, movies, series });
+    },
+    /** One-press switch to another saved playlist. */
+    switchPlaylist = async (target: XtreamAccount, keepCurrent = true) => {
+      if (switchingId || target.id === account?.id) return;
+      setSwitchingId(target.id);
+      try {
+        const parked = await loadParkedLists(target.id);
+        let lists: { channels: Channel[]; movies: Movie[]; series: Series[] } | null = parked
+          ? {
+              channels: sanitizeList('zendit_channels', parked.channels as Channel[]),
+              movies: sanitizeList('zendit_movies', parked.movies as Movie[]),
+              series: sanitizeList('zendit_series', parked.series as Series[]),
+            }
+          : null;
+        let next = target;
+        if (!lists) {
+          // Never opened on this device (or its lists were cleared): download them now.
+          if (target.type === 'xtream') {
+            const r = await loadXtreamAccount(credsOf(target), settings.liveStreamFormat);
+            lists = r;
+            next = { ...target, serverTimezone: r.meta.serverTimezone, expiryDate: r.meta.expiryDate || target.expiryDate };
+          } else if (target.type === 'm3u_url') {
+            const text = await fetchM3UFromUrl(target.serverUrl);
+            const { channelEntries, vodEntries } = classifyM3UEntries(parseM3U(text));
+            const { movieEntries, seriesList } = groupSeriesFromEntries(vodEntries);
+            lists = { channels: channelEntries.map(m3uEntryToChannel), movies: movieEntries.map(m3uEntryToMovie), series: seriesList };
+          } else {
+            setToast('Bu liste bir dosyadan eklenmiş. Düzenle ile dosyayı yeniden seçin.');
+            return;
+          }
+          next = {
+            ...next,
+            channelsCount: lists.channels.length,
+            moviesCount: lists.movies.length,
+            seriesCount: lists.series.length,
+            lastRefreshAt: Date.now(),
+          };
+        }
+        if (keepCurrent) await parkActiveLists();
+        (setAccount(next), setChannels(lists.channels), setMovies(lists.movies), setSeries(lists.series));
+        // The parked copy is now the open list (saved under the active keys): free the space.
+        deleteParkedLists(target.id);
+        (setIsPlaylistsOpen(false), navigate('home'), setToast(`"${next.name}" listesine geçildi.`));
+      } catch (err: any) {
+        setToast(err?.message || 'Listeye geçilemedi. Bağlantınızı kontrol edip tekrar deneyin.');
+      } finally {
+        setSwitchingId(null);
+      }
+    },
+    deletePlaylist = async (target: XtreamAccount) => {
+      if (switchingId) return;
+      const rest = accounts.filter((a) => a.id !== target.id);
+      if (target.id === account?.id) {
+        // Deleting the open playlist: move to another one first (its lists are dropped, not parked).
+        if (rest.length) await switchPlaylist(rest[0], false);
+        else (setAccount(null), setChannels([]), setMovies([]), setSeries([]), setIsPlaylistsOpen(false), navigate('home'));
+      }
+      setAccounts((prev) => prev.filter((a) => a.id !== target.id));
+      await deleteParkedLists(target.id);
+    },
+    openAccountForm = (target: XtreamAccount | null) => {
+      (setAccountFormTarget(target), setIsPlaylistsOpen(false), setIsAccountOpen(true));
     },
     mergeLists = (J: { channels: Channel[]; movies: Movie[]; series: Series[] }) => {
       const xe = new Set(channels.filter((Qe) => Qe.isFavorite).map((Qe) => Qe.id)),
@@ -694,9 +799,12 @@ export default function App() {
         return;
       }
       setIsRefreshing(true);
+      const refreshedId = account.id;
       try {
         if (account.type === 'xtream') {
           const xe = await loadXtreamAccount(credsOf(account), settings.liveStreamFormat);
+          // Switched to another playlist meanwhile: these lists belong to the old one, drop them.
+          if (activeIdRef.current !== refreshedId) return;
           (mergeLists(xe),
             setAccount(
               (Ie) =>
@@ -715,8 +823,9 @@ export default function App() {
             ),
             J || setToast('Listeler güncellendi.'));
         } else if (account.type === 'm3u_url') {
-          const xe = await fetchM3UFromUrl(account.serverUrl),
-            { channelEntries: Ie, vodEntries: Ke } = classifyM3UEntries(parseM3U(xe)),
+          const xe = await fetchM3UFromUrl(account.serverUrl);
+          if (activeIdRef.current !== refreshedId) return;
+          const { channelEntries: Ie, vodEntries: Ke } = classifyM3UEntries(parseM3U(xe)),
             { movieEntries: Qe, seriesList: Je } = groupSeriesFromEntries(Ke),
             ot = { channels: Ie.map(m3uEntryToChannel), movies: Qe.map(m3uEntryToMovie), series: Je };
           (mergeLists(ot),
@@ -843,6 +952,7 @@ export default function App() {
     handleBack = () => {
       if (crashReport) setCrashReport(null);
       else if (pinPrompt) closePin(null);
+      else if (isPlaylistsOpen && !switchingId) setIsPlaylistsOpen(false);
       else if (trailer) setTrailer(null);
       else if (isCategoryEditorOpen) setIsCategoryEditorOpen(false);
       else if (webPlayerMedia) closeWebPlayer();
@@ -975,7 +1085,7 @@ export default function App() {
             onOpenSettings={() => navigate('settings')}
             onOpenFavorites={() => navigate(tab, CATEGORY_FAVORITES)}
             onOpenHistory={() => navigate('continue')}
-            onOpenAccountModal={() => setIsAccountOpen(true)}
+            onOpenPlaylists={() => setIsPlaylistsOpen(true)}
             onRefreshData={() => refreshLists()}
             onOpenGuide={() => openGuide()}
             isRefreshing={isRefreshing}
@@ -992,7 +1102,8 @@ export default function App() {
                 history={history}
                 searchQuery={deferredQuery}
                 onNavigate={navigate}
-                onOpenAccountModal={() => setIsAccountOpen(true)}
+                onOpenAccountModal={() => setIsPlaylistsOpen(true)}
+                playlistCount={accounts.length}
                 onSelectMedia={openMediaDetail}
                 onPlayChannel={(J) => playChannel(J)}
                 onOpenContinue={(J) => navigate('continue', J)}
@@ -1076,7 +1187,7 @@ export default function App() {
               onClearHistory={clearHistory}
               onClearCache={clearCache}
               onClearData={clearAllData}
-              onOpenAccount={() => setIsAccountOpen(true)}
+              onOpenAccount={() => setIsPlaylistsOpen(true)}
               onOpenAnalytics={() => setIsAnalyticsOpen(true)}
               onBack={() => navigate('home')}
               parentalUnlocked={parentalUnlocked}
@@ -1111,14 +1222,26 @@ export default function App() {
           </div>
         )}
         {isAccountOpen && (
-          <div data-nav-layer>
+          <div data-nav-layer key={accountFormTarget?.id || 'new'}>
             <AccountLoginModal
-              currentAccount={account}
+              currentAccount={accountFormTarget}
               liveStreamFormat={settings.liveStreamFormat}
               onSaveAccount={handleSaveAccount}
               onClose={() => setIsAccountOpen(false)}
             />
           </div>
+        )}
+        {isPlaylistsOpen && (
+          <PlaylistManager
+            accounts={accounts}
+            activeId={account?.id ?? null}
+            switchingId={switchingId}
+            onSwitch={(a) => switchPlaylist(a)}
+            onAdd={() => openAccountForm(null)}
+            onEdit={(a) => openAccountForm(a)}
+            onDelete={(a) => deletePlaylist(a)}
+            onClose={() => setIsPlaylistsOpen(false)}
+          />
         )}
         {isAnalyticsOpen && (
           <div data-nav-layer className="app-bg fixed inset-0 z-50 overflow-y-auto">

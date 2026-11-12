@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarDays, Heart, History, RefreshCw, Search, Settings, X } from 'lucide-react';
+import { CalendarDays, Heart, History, ListVideo, RefreshCw, Search, Settings, X } from 'lucide-react';
 import { TabType, XtreamAccount } from '../types';
 import { MENU_COLORS } from '../lib/tv';
 import { LiveIcon, MovieIcon, SeriesIcon } from './TvUi';
@@ -17,6 +17,8 @@ interface HeaderProps {
   onOpenFavorites: () => void;
   onOpenHistory: () => void;
   onOpenAccountModal?: () => void;
+  /** Home: opens "Listelerim" (switch between saved playlists). */
+  onOpenPlaylists?: () => void;
   onRefreshData?: () => void;
   /** Live TV: opens the TV guide grid. */
   onOpenGuide?: () => void;
@@ -49,6 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenFavorites,
   onOpenHistory,
   onRefreshData,
+  onOpenPlaylists,
   onOpenGuide,
   isRefreshing = false,
   compact = false,
@@ -123,6 +126,11 @@ export const Header: React.FC<HeaderProps> = ({
                 className={circleBtn}
               >
                 <RefreshCw className={`${circleIcon} ${isRefreshing ? 'animate-spin' : ''}`} />
+              </button>
+            )}
+            {onOpenPlaylists && (
+              <button type="button" onClick={onOpenPlaylists} title="Listelerim" aria-label="Listelerim" className={circleBtn}>
+                <ListVideo className={circleIcon} />
               </button>
             )}
             <button type="button" onClick={onOpenSettings} title="Ayarlar" className={circleBtn}>

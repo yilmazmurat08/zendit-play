@@ -6,6 +6,7 @@ import { foldQuery, matchesQuery } from '../lib/search';
 import { useParental } from '../lib/parental';
 import { CONTINUE_LABELS, ContinueKind, useContinueLists } from '../lib/continueWatching';
 import { Footer, HeartIcon, LiveIcon, MovieIcon, PosterImage, SeriesIcon } from './TvUi';
+import { MAX_PLAYLISTS } from './PlaylistManager';
 
 interface HomeScreenProps {
   account: XtreamAccount | null;
@@ -17,6 +18,8 @@ interface HomeScreenProps {
   searchQuery: string;
   onNavigate: (tab: TabType, category?: string) => void;
   onOpenAccountModal: () => void;
+  /** Saved playlists (shown on the Playlistler tile). */
+  playlistCount?: number;
   onSelectMedia: (item: Movie | Series) => void;
   onPlayChannel: (channel: Channel) => void;
   /** "İzlemeye Devam Et" screen, opened on the given list. */
@@ -111,6 +114,7 @@ export function HomeScreen({
   searchQuery,
   onNavigate,
   onOpenAccountModal,
+  playlistCount = 1,
   onSelectMedia,
   onPlayChannel,
   onOpenContinue,
@@ -247,7 +251,7 @@ export function HomeScreen({
               icon={ListVideo}
               color={MENU_COLORS.playlists}
               label="Playlistler"
-              subtitle={account ? '1 Playlist' : 'Playlist ekle'}
+              subtitle={account ? `${playlistCount} / ${MAX_PLAYLISTS} Playlist` : 'Playlist ekle'}
               onClick={onOpenAccountModal}
               compact={compact}
             />
